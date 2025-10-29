@@ -1636,7 +1636,7 @@
 
             console.log('handleLogicAnalyzerData called with:', data);
 
-            // Update data buffers
+            // Update data buffers with synchronized data
             if (data.ch1_data) {
                 logicAnalyzerData.ch1 = data.ch1_data;
                 console.log('Updated CH1 data, length:', data.ch1_data.length);
@@ -1648,6 +1648,28 @@
             if (data.timestamps) {
                 logicAnalyzerData.timestamps = data.timestamps;
                 console.log('Updated timestamps, length:', data.timestamps.length);
+            }
+
+            // Update analysis data
+            if (data.ch1_frequency !== undefined) {
+                logicAnalyzerData.ch1_frequency = data.ch1_frequency;
+            }
+            if (data.ch1_duty_cycle !== undefined) {
+                logicAnalyzerData.ch1_duty_cycle = data.ch1_duty_cycle;
+            }
+            if (data.ch2_frequency !== undefined) {
+                logicAnalyzerData.ch2_frequency = data.ch2_frequency;
+            }
+            if (data.ch2_duty_cycle !== undefined) {
+                logicAnalyzerData.ch2_duty_cycle = data.ch2_duty_cycle;
+            }
+
+            // Update scaling parameters from server
+            if (data.timebase !== undefined) {
+                logicTimebase = data.timebase;
+            }
+            if (data.scale !== undefined) {
+                logicAmplitudeScale = data.scale;
             }
         }
 
@@ -1741,7 +1763,7 @@
         }
 
         function drawLogicChannel(data, timestamps, color) {
-            if (data.length < 2) {
+            if (data.length < 2 || timestamps.length < 2) {
                 return;
             }
 
@@ -1753,27 +1775,35 @@
             const height = logicAnalyzerCanvas.height;
             const centerY = height / 2;
 
-            // Simple digital waveform display - plot each sample as a point
+            // Calculate proper scaling based on timebase and data time span
+            const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
+            const pixelsPerSecond = width / (timeSpan * logicTimebase);
+
+            // Digital waveform display with proper time scaling
             const highY = centerY - 60 * logicAmplitudeScale;
             const lowY = centerY + 60 * logicAmplitudeScale;
 
-            // Show last 1000 samples for clear digital display
-            const numSamples = Math.min(1000, data.length);
-            const startIndex = Math.max(0, data.length - numSamples);
+            // For high-frequency signals, we need to downsample to prevent aliasing
+            // Calculate how many samples to skip to maintain reasonable display density
+            const targetSamples = Math.min(2000, data.length); // Limit samples for performance
+            const skipFactor = Math.max(1, Math.floor(data.length / targetSamples));
 
-            // Simple pixel-per-sample mapping
-            const pixelsPerSample = width / numSamples;
-
-            // Start plotting
-            let lastValue = data[startIndex];
+            // Start from the beginning of the data
+            let lastValue = data[0];
             let lastY = lastValue >= 0.5 ? highY : lowY;
+            let lastTime = timestamps[0];
             let x = 0;
 
             logicAnalyzerCtx.moveTo(x, lastY);
 
-            for (let i = startIndex + 1; i < data.length; i++) {
+            // Plot waveform with proper time scaling
+            for (let i = skipFactor; i < data.length; i += skipFactor) {
                 const currentValue = data[i];
-                x += pixelsPerSample;
+                const currentTime = timestamps[i];
+
+                // Calculate X position based on time scaling
+                const timeDiff = currentTime - timestamps[0];
+                x = timeDiff * pixelsPerSecond;
 
                 // Stop if we exceed canvas width
                 if (x > width) break;
@@ -1791,15 +1821,75 @@
                 }
 
                 lastValue = currentValue;
+                lastTime = currentTime;
+            }
+
+            // Complete the path to the end if needed
+            if (x < width) {
+                logicAnalyzerCtx.lineTo(width, lastY);
             }
 
             logicAnalyzerCtx.stroke();
 
-            // Draw channel label
+            // Draw channel label and analysis data
             logicAnalyzerCtx.fillStyle = color;
             logicAnalyzerCtx.font = '12px monospace';
             const labelY = color === '#00ff00' ? highY - 10 : lowY + 20;
-            logicAnalyzerCtx.fillText(color === '#00ff00' ? 'CH1 (17-18)' : 'CH2 (22-23)', 10, labelY);
+            const channelName = color === '#00ff00' ? 'CH1' : 'CH2';
+            const pinInfo = color === '#00ff00' ? '(17-18)' : '(22-23)';
+
+            logicAnalyzerCtx.fillText(`${channelName} ${pinInfo}`, 10, labelY);
+
+            // Display frequency and duty cycle if available
+            const analysisData = color === '#00ff00' ? logicAnalyzerData : logicAnalyzerData;
+            const freq = color === '#00ff00' ? analysisData.ch1_frequency : analysisData.ch2_frequency;
+            const duty = color === '#00ff00' ? analysisData.ch1_duty_cycle : analysisData.ch2_duty_cycle;
+
+            if (freq && freq > 0) {
+                const freqText = freq >= 1000 ? `${(freq/1000).toFixed(1)}kHz` : `${freq.toFixed(1)}Hz`;
+                logicAnalyzerCtx.fillText(`${channelName}: ${freqText}`, 10, labelY + 15);
+            }
+
+            if (duty !== undefined && duty >= 0) {
+                logicAnalyzerCtx.fillText(`${channelName}: ${duty.toFixed(1)}%`, 10, labelY + 30);
+            }
+
+            // Draw edge detection markers (rising/falling edges)
+            drawEdgeMarkers(data, timestamps, color, pixelsPerSecond, highY, lowY);
+        }
+
+        function drawEdgeMarkers(data, timestamps, color, pixelsPerSecond, highY, lowY) {
+            if (data.length < 3) return;
+
+            // Find edges in the displayed portion
+            const markerSize = 4;
+            logicAnalyzerCtx.fillStyle = color === '#00ff00' ? '#ffff00' : '#ff00ff'; // Yellow for CH1, Magenta for CH2
+
+            for (let i = 1; i < Math.min(data.length, 1000); i++) { // Limit edge detection for performance
+                const prevValue = data[i-1];
+                const currValue = data[i];
+
+                if (prevValue !== currValue) {
+                    const edgeTime = timestamps[i];
+                    const timeDiff = edgeTime - timestamps[0];
+                    const x = timeDiff * pixelsPerSecond;
+
+                    if (x >= 0 && x <= logicAnalyzerCanvas.width) {
+                        // Draw edge marker
+                        logicAnalyzerCtx.beginPath();
+                        logicAnalyzerCtx.arc(x, currValue >= 0.5 ? highY : lowY, markerSize, 0, 2 * Math.PI);
+                        logicAnalyzerCtx.fill();
+
+                        // Draw small indicator line
+                        logicAnalyzerCtx.strokeStyle = color;
+                        logicAnalyzerCtx.lineWidth = 1;
+                        logicAnalyzerCtx.beginPath();
+                        logicAnalyzerCtx.moveTo(x, highY - 10);
+                        logicAnalyzerCtx.lineTo(x, lowY + 10);
+                        logicAnalyzerCtx.stroke();
+                    }
+                }
+            }
         }
 
         function clearLogicAnalyzer() {

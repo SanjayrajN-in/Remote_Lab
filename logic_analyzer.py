@@ -327,10 +327,92 @@ class LogicAnalyzerManager:
 
         return False
 
+    def _analyze_pwm_signal(self, data, timestamps):
+        """Analyze PWM signal to calculate frequency and duty cycle"""
+        if len(data) < 10 or len(timestamps) < 10:
+            return 0.0, 0.0
+
+        try:
+            # Convert to numpy arrays for efficient processing
+            signal = np.array(data)
+            times = np.array(timestamps)
+
+            # Find edges (transitions)
+            diff_signal = np.diff(signal.astype(int))
+            rising_edges = np.where(diff_signal == 1)[0] + 1
+            falling_edges = np.where(diff_signal == -1)[0] + 1
+
+            if len(rising_edges) < 2 and len(falling_edges) < 2:
+                # No clear PWM pattern, try to estimate from signal levels
+                high_count = np.sum(signal >= 0.5)
+                total_count = len(signal)
+                if total_count > 0:
+                    duty_cycle = (high_count / total_count) * 100.0
+                else:
+                    duty_cycle = 0.0
+
+                # Estimate frequency from zero crossings or signal changes
+                changes = np.where(np.diff(signal.astype(int)) != 0)[0]
+                if len(changes) >= 4:  # Need at least 2 full cycles
+                    # Calculate period from average distance between changes
+                    periods = np.diff(times[changes])
+                    if len(periods) > 0:
+                        avg_period = np.mean(periods)
+                        frequency = 1.0 / avg_period if avg_period > 0 else 0.0
+                    else:
+                        frequency = 0.0
+                else:
+                    frequency = 0.0
+
+                return frequency, duty_cycle
+
+            # Analyze PWM pattern
+            all_edges = np.sort(np.concatenate([rising_edges, falling_edges]))
+            if len(all_edges) < 4:  # Need at least 2 full cycles
+                return 0.0, 0.0
+
+            # Calculate periods between rising edges
+            if len(rising_edges) >= 2:
+                periods = np.diff(times[rising_edges])
+                avg_period = np.mean(periods)
+                frequency = 1.0 / avg_period if avg_period > 0 else 0.0
+            else:
+                # Fallback: use time span and edge count
+                time_span = times[-1] - times[0]
+                edge_count = len(all_edges)
+                if time_span > 0 and edge_count > 0:
+                    # Estimate frequency from edges per second
+                    frequency = edge_count / (2 * time_span)  # Divide by 2 for full cycles
+                else:
+                    frequency = 0.0
+
+            # Calculate duty cycle
+            high_time = 0.0
+            total_time = times[-1] - times[0]
+
+            # Calculate time spent high
+            for i in range(len(rising_edges)):
+                rise_idx = rising_edges[i]
+                if i < len(falling_edges):
+                    fall_idx = falling_edges[i]
+                    if fall_idx > rise_idx:
+                        high_time += times[fall_idx] - times[rise_idx]
+
+            if total_time > 0:
+                duty_cycle = (high_time / total_time) * 100.0
+            else:
+                duty_cycle = 0.0
+
+            return frequency, duty_cycle
+
+        except Exception as e:
+            print(f"Error analyzing PWM signal: {e}")
+            return 0.0, 0.0
+
     def _streaming_loop(self):
-        """Stream data to frontend at regular intervals with optimized data transmission"""
+        """Stream data to frontend at regular intervals with synchronized data transmission"""
         stream_count = 0
-        last_sent_count = 0
+        last_stream_time = time.time()
 
         while self.acquiring and not self.stop_event.is_set():
             try:
@@ -339,44 +421,67 @@ class LogicAnalyzerManager:
                 if not self.acquiring:
                     break
 
+                current_time = time.time()
                 stream_count += 1
 
-                # Only send data if we have new samples since last transmission
-                current_buffer_size = len(self.ch1_buffer)
-                if current_buffer_size <= last_sent_count:
-                    continue  # No new data to send
+                # Get current buffer sizes (they should be equal due to synchronized acquisition)
+                ch1_size = len(self.ch1_buffer)
+                ch2_size = len(self.ch2_buffer)
+                ts_size = len(self.timestamp_buffer)
 
-                # Prepare data for streaming - send only recent data to reduce bandwidth
+                # Ensure all buffers have the same length (synchronization check)
+                min_size = min(ch1_size, ch2_size, ts_size)
+                if min_size == 0:
+                    continue  # No data to send
+
+                # Prepare data for streaming with proper synchronization
                 data_to_send = {
-                    'timestamp': time.time(),
+                    'timestamp': current_time,
                     'sampling_rate': self.sampling_rate,
                     'timebase': self.timebase,
                     'scale': self.amplitude_scale,
                     'channel_mode': self.channel_mode
                 }
 
-                # Send last N samples to keep display updated without overwhelming bandwidth
-                # For high sample rates, limit to last 10000 samples per channel
-                max_samples_to_send = min(10000, current_buffer_size)
+                # Send last N samples, ensuring all arrays are synchronized
+                # For high sample rates, limit to prevent browser overload
+                max_samples_to_send = min(5000, min_size)  # Reduced from 10000 for better performance
+
+                # Extract synchronized data from the end of buffers
+                start_idx = max(0, min_size - max_samples_to_send)
 
                 if self.channel_mode in ['ch1', 'both']:
-                    ch1_data = list(self.ch1_buffer)[-max_samples_to_send:]
+                    ch1_data = list(self.ch1_buffer)[start_idx:]
                     data_to_send['ch1_data'] = ch1_data
                 if self.channel_mode in ['ch2', 'both']:
-                    ch2_data = list(self.ch2_buffer)[-max_samples_to_send:]
+                    ch2_data = list(self.ch2_buffer)[start_idx:]
                     data_to_send['ch2_data'] = ch2_data
 
-                timestamps = list(self.timestamp_buffer)[-max_samples_to_send:]
+                timestamps = list(self.timestamp_buffer)[start_idx:]
                 data_to_send['timestamps'] = timestamps
 
-                # Update last sent count
-                last_sent_count = current_buffer_size
+                # Add analysis data for PWM signals
+                if len(timestamps) > 1:
+                    time_span = timestamps[-1] - timestamps[0]
+                    data_to_send['time_span'] = time_span
+                    data_to_send['sample_count'] = len(timestamps)
+
+                    # Calculate frequency and duty cycle if we have enough data
+                    if self.channel_mode in ['ch1', 'both'] and len(ch1_data) > 10:
+                        freq_ch1, duty_ch1 = self._analyze_pwm_signal(ch1_data, timestamps)
+                        data_to_send['ch1_frequency'] = freq_ch1
+                        data_to_send['ch1_duty_cycle'] = duty_ch1
+
+                    if self.channel_mode in ['ch2', 'both'] and len(ch2_data) > 10:
+                        freq_ch2, duty_ch2 = self._analyze_pwm_signal(ch2_data, timestamps)
+                        data_to_send['ch2_frequency'] = freq_ch2
+                        data_to_send['ch2_duty_cycle'] = duty_ch2
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)
 
                 if stream_count % 10 == 0:  # Log every 10 streams
-                    print(f"Stream {stream_count}: Sent {max_samples_to_send} samples, Buffer size: {current_buffer_size}")
+                    print(f"Stream {stream_count}: Sent {max_samples_to_send} samples, Buffer sizes: CH1={ch1_size}, CH2={ch2_size}, TS={ts_size}")
 
             except Exception as e:
                 print(f"Logic analyzer streaming error: {e}")
