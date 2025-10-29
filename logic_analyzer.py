@@ -34,36 +34,27 @@ class LogicAnalyzerManager:
         self.acquiring = False
         self.lgpio_available = LGPIO_AVAILABLE
         self.chip = None
-        self.handle = None
 
-        # GPIO pin configuration for Raspberry Pi 5
-        self.PIN_CH1_POS = 17  # Channel 1 positive pulse
-        self.PIN_CH1_NEG = 18  # Channel 1 negative pulse
-        self.PIN_CH2_POS = 22  # Channel 2 positive pulse
-        self.PIN_CH2_NEG = 23  # Channel 2 negative pulse
+        # GPIO pin configuration for stepper motor control
+        self.PIN_CH1_POS = 17  # Channel 1 positive
+        self.PIN_CH1_NEG = 18  # Channel 1 negative
+        self.PIN_CH2_POS = 22  # Channel 2 positive
+        self.PIN_CH2_NEG = 23  # Channel 2 negative
 
-        # Acquisition parameters
-        self.sampling_rate = 1000000  # 1 MHz default for very high-frequency signals
-        self.buffer_size = 50000     # Larger circular buffer size for high-frequency data
-        self.stream_interval = 0.02  # Send data every 20ms for better responsiveness
+        # Simple acquisition parameters
+        self.sampling_rate = 100000  # 100 kHz sampling
+        self.buffer_size = 10000     # Buffer for 0.1 seconds of data
+        self.stream_interval = 0.05  # Send data every 50ms
 
-        # Data buffers
-        self.ch1_buffer = deque(maxlen=self.buffer_size)
-        self.ch2_buffer = deque(maxlen=self.buffer_size)
+        # Simple data buffers - just the differential values
+        self.ch1_diff_buffer = deque(maxlen=self.buffer_size)
+        self.ch2_diff_buffer = deque(maxlen=self.buffer_size)
         self.timestamp_buffer = deque(maxlen=self.buffer_size)
 
         # Control parameters
         self.channel_mode = 'both'  # 'ch1', 'ch2', 'both'
         self.timebase = 0.001      # 1ms/div default
         self.amplitude_scale = 1.0
-
-        # Trigger parameters
-        self.trigger_enabled = False
-        self.trigger_channel = 1  # 1 or 2
-        self.trigger_edge = 'rising'  # 'rising', 'falling', 'both'
-        self.trigger_level = 0.5  # Trigger threshold (0-1)
-        self.pre_trigger_samples = 1000  # Samples to keep before trigger
-        self.trigger_timeout = 1.0  # Timeout in seconds for trigger wait
 
         # Threading
         self.acquisition_thread = None
@@ -95,9 +86,6 @@ class LogicAnalyzerManager:
     def cleanup_gpio(self):
         """Clean up GPIO resources"""
         try:
-            if self.handle:
-                lgpio.gpiochip_close(self.handle)
-                self.handle = None
             if self.chip:
                 lgpio.gpiochip_close(self.chip)
                 self.chip = None
@@ -119,8 +107,8 @@ class LogicAnalyzerManager:
                 return False, message
 
             # Reset buffers and stop event
-            self.ch1_buffer.clear()
-            self.ch2_buffer.clear()
+            self.ch1_diff_buffer.clear()
+            self.ch2_diff_buffer.clear()
             self.timestamp_buffer.clear()
             self.stop_event.clear()
 
@@ -201,107 +189,42 @@ class LogicAnalyzerManager:
 
 
     def _acquisition_loop(self):
-        """Optimized acquisition loop for high-frequency sampling with trigger support"""
+        """Simple acquisition loop - just read GPIO pins and compute differences"""
         sample_interval = 1.0 / self.sampling_rate
         last_sample_time = time.time()
         sample_count = 0
-
-        # Trigger state variables
-        triggered = False
-        trigger_start_time = time.time() if self.trigger_enabled else None
-        pre_trigger_ch1 = deque(maxlen=self.pre_trigger_samples) if self.trigger_enabled else None
-        pre_trigger_ch2 = deque(maxlen=self.pre_trigger_samples) if self.trigger_enabled else None
-        pre_trigger_timestamps = deque(maxlen=self.pre_trigger_samples) if self.trigger_enabled else None
-
-        # Previous values for edge detection
-        prev_ch1 = None
-        prev_ch2 = None
 
         while self.acquiring and not self.stop_event.is_set():
             try:
                 current_time = time.time()
 
-                # Maintain precise sampling rate
+                # Maintain sampling rate
                 if current_time - last_sample_time >= sample_interval:
-                    # Read GPIO pins for differential signals
+                    # Read GPIO pins (0 or 1)
                     ch1_pos = lgpio.gpio_read(self.chip, self.PIN_CH1_POS)
                     ch1_neg = lgpio.gpio_read(self.chip, self.PIN_CH1_NEG)
                     ch2_pos = lgpio.gpio_read(self.chip, self.PIN_CH2_POS)
                     ch2_neg = lgpio.gpio_read(self.chip, self.PIN_CH2_NEG)
 
-                    # Calculate differential signals (POS - NEG) and determine logic level
-                    # 1-0 = 1 → High (+ve pulse)
-                    # 1-1 = 0 → Low
-                    # 0-1 = -1 → Low (-ve pulse)
-                    # 0-0 = 0 → Low
+                    # Compute differences: pos - neg gives +1, 0, or -1
+                    ch1_diff = ch1_pos - ch1_neg
+                    ch2_diff = ch2_pos - ch2_neg
 
-                    ch1_diff = ch1_pos - ch1_neg  # -1, 0, or 1
-                    ch2_diff = ch2_pos - ch2_neg  # -1, 0, or 1
+                    # Store the differential values
+                    self.ch1_diff_buffer.append(ch1_diff)
+                    self.ch2_diff_buffer.append(ch2_diff)
+                    self.timestamp_buffer.append(current_time)
 
-                    # Convert to digital logic levels (0 = Low, 1 = High)
-                    ch1_logic = 1 if ch1_diff == 1 else 0  # Only +1 diff is High
-                    ch2_logic = 1 if ch2_diff == 1 else 0  # Only +1 diff is High
+                    sample_count += 1
 
-                    # Store as float for consistency
-                    ch1_float = float(ch1_logic)
-                    ch2_float = float(ch2_logic)
+                    # Print status occasionally
+                    if sample_count % 5000 == 0:
+                        print(f"Sample {sample_count}: CH1={ch1_diff}, CH2={ch2_diff}")
 
-                    # Handle triggering
-                    if self.trigger_enabled and not triggered:
-                        # Store pre-trigger data
-                        if pre_trigger_ch1 is not None:
-                            pre_trigger_ch1.append(ch1_float)
-                            pre_trigger_ch2.append(ch2_float)
-                            pre_trigger_timestamps.append(current_time)
-
-                        # Check for trigger condition
-                        trigger_detected = False
-
-                        if self.trigger_channel == 1:
-                            trigger_detected = self._check_trigger_condition(ch1_float, prev_ch1, self.trigger_edge, self.trigger_level)
-                        elif self.trigger_channel == 2:
-                            trigger_detected = self._check_trigger_condition(ch2_float, prev_ch2, self.trigger_edge, self.trigger_level)
-
-                        if trigger_detected:
-                            triggered = True
-                            print(f"Trigger detected on CH{self.trigger_channel} at sample {sample_count}")
-
-                            # Add pre-trigger data to main buffers
-                            if pre_trigger_ch1:
-                                self.ch1_buffer.extend(pre_trigger_ch1)
-                                self.ch2_buffer.extend(pre_trigger_ch2)
-                                self.timestamp_buffer.extend(pre_trigger_timestamps)
-
-                    # Add current sample to buffers (if triggered or no trigger enabled)
-                    if not self.trigger_enabled or triggered:
-                        self.ch1_buffer.append(ch1_float)
-                        self.ch2_buffer.append(ch2_float)
-                        self.timestamp_buffer.append(current_time)
-
-                        sample_count += 1
-
-                        # Print status less frequently for high sample rates
-                        if sample_count % 10000 == 0:
-                            print(f"Sample {sample_count}: CH1({ch1_pos}-{ch1_neg}={ch1_diff})={ch1_logic}, CH2({ch2_pos}-{ch2_neg}={ch2_diff})={ch2_logic}, Buffer: {len(self.ch1_buffer)}, Rate: {self.sampling_rate}Hz")
-
-                    # Update previous values for edge detection
-                    prev_ch1 = ch1_float
-                    prev_ch2 = ch2_float
                     last_sample_time = current_time
 
-                    # Check trigger timeout
-                    if self.trigger_enabled and not triggered and trigger_start_time:
-                        if current_time - trigger_start_time > self.trigger_timeout:
-                            print(f"Trigger timeout after {self.trigger_timeout}s, starting acquisition anyway")
-                            triggered = True
-                            # Add any pre-trigger data we have
-                            if pre_trigger_ch1:
-                                self.ch1_buffer.extend(pre_trigger_ch1)
-                                self.ch2_buffer.extend(pre_trigger_ch2)
-                                self.timestamp_buffer.extend(pre_trigger_timestamps)
-
-                # Minimal sleep to prevent CPU hogging while maintaining timing
-                time.sleep(max(0.000001, sample_interval / 10))  # Adaptive sleep
+                # Small sleep to prevent CPU hogging
+                time.sleep(0.0001)
 
             except Exception as e:
                 print(f"Logic analyzer acquisition error: {e}")
@@ -410,9 +333,8 @@ class LogicAnalyzerManager:
             return 0.0, 0.0
 
     def _streaming_loop(self):
-        """Stream data to frontend at regular intervals with synchronized data transmission"""
+        """Stream differential data to frontend"""
         stream_count = 0
-        last_stream_time = time.time()
 
         while self.acquiring and not self.stop_event.is_set():
             try:
@@ -424,64 +346,32 @@ class LogicAnalyzerManager:
                 current_time = time.time()
                 stream_count += 1
 
-                # Get current buffer sizes (they should be equal due to synchronized acquisition)
-                ch1_size = len(self.ch1_buffer)
-                ch2_size = len(self.ch2_buffer)
-                ts_size = len(self.timestamp_buffer)
+                # Get buffer sizes
+                buffer_size = len(self.ch1_diff_buffer)
+                if buffer_size == 0:
+                    continue
 
-                # Ensure all buffers have the same length (synchronization check)
-                min_size = min(ch1_size, ch2_size, ts_size)
-                if min_size == 0:
-                    continue  # No data to send
+                # Send last 2000 samples to prevent browser overload
+                max_samples = min(2000, buffer_size)
+                start_idx = max(0, buffer_size - max_samples)
 
-                # Prepare data for streaming with proper synchronization
+                # Prepare data for frontend
                 data_to_send = {
                     'timestamp': current_time,
                     'sampling_rate': self.sampling_rate,
                     'timebase': self.timebase,
                     'scale': self.amplitude_scale,
-                    'channel_mode': self.channel_mode
+                    'channel_mode': self.channel_mode,
+                    'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
+                    'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
+                    'timestamps': list(self.timestamp_buffer)[start_idx:]
                 }
-
-                # Send last N samples, ensuring all arrays are synchronized
-                # For high sample rates, limit to prevent browser overload
-                max_samples_to_send = min(5000, min_size)  # Reduced from 10000 for better performance
-
-                # Extract synchronized data from the end of buffers
-                start_idx = max(0, min_size - max_samples_to_send)
-
-                if self.channel_mode in ['ch1', 'both']:
-                    ch1_data = list(self.ch1_buffer)[start_idx:]
-                    data_to_send['ch1_data'] = ch1_data
-                if self.channel_mode in ['ch2', 'both']:
-                    ch2_data = list(self.ch2_buffer)[start_idx:]
-                    data_to_send['ch2_data'] = ch2_data
-
-                timestamps = list(self.timestamp_buffer)[start_idx:]
-                data_to_send['timestamps'] = timestamps
-
-                # Add analysis data for PWM signals
-                if len(timestamps) > 1:
-                    time_span = timestamps[-1] - timestamps[0]
-                    data_to_send['time_span'] = time_span
-                    data_to_send['sample_count'] = len(timestamps)
-
-                    # Calculate frequency and duty cycle if we have enough data
-                    if self.channel_mode in ['ch1', 'both'] and len(ch1_data) > 10:
-                        freq_ch1, duty_ch1 = self._analyze_pwm_signal(ch1_data, timestamps)
-                        data_to_send['ch1_frequency'] = freq_ch1
-                        data_to_send['ch1_duty_cycle'] = duty_ch1
-
-                    if self.channel_mode in ['ch2', 'both'] and len(ch2_data) > 10:
-                        freq_ch2, duty_ch2 = self._analyze_pwm_signal(ch2_data, timestamps)
-                        data_to_send['ch2_frequency'] = freq_ch2
-                        data_to_send['ch2_duty_cycle'] = duty_ch2
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)
 
-                if stream_count % 10 == 0:  # Log every 10 streams
-                    print(f"Stream {stream_count}: Sent {max_samples_to_send} samples, Buffer sizes: CH1={ch1_size}, CH2={ch2_size}, TS={ts_size}")
+                if stream_count % 10 == 0:
+                    print(f"Stream {stream_count}: Sent {max_samples} samples")
 
             except Exception as e:
                 print(f"Logic analyzer streaming error: {e}")
@@ -496,11 +386,5 @@ class LogicAnalyzerManager:
             'channel_mode': self.channel_mode,
             'timebase': self.timebase,
             'amplitude_scale': self.amplitude_scale,
-            'buffer_size': len(self.ch1_buffer),
-            'trigger_enabled': self.trigger_enabled,
-            'trigger_channel': self.trigger_channel,
-            'trigger_edge': self.trigger_edge,
-            'trigger_level': self.trigger_level,
-            'pre_trigger_samples': self.pre_trigger_samples,
-            'trigger_timeout': self.trigger_timeout
+            'buffer_size': len(self.ch1_diff_buffer)
         }

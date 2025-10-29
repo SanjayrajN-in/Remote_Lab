@@ -30,8 +30,8 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 # Initialize SocketIO
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Initialize logic analyzer
-logic_analyzer_manager = init_logic_analyzer_manager(socketio)
+# Initialize logic analyzer (moved after socketio initialization)
+logic_analyzer_manager = None
 
 # Global variables for video and audio streaming
 video_capture = None
@@ -777,6 +777,15 @@ def get_network_info():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def initialize_logic_analyzer():
+    """Initialize logic analyzer manager after app is created"""
+    global logic_analyzer_manager
+    if logic_analyzer_manager is None:
+        logic_analyzer_manager = init_logic_analyzer_manager(socketio)
+
+# Initialize logic analyzer after app creation
+initialize_logic_analyzer()
 
 # Logic Analyzer Routes
 @app.route('/logic/start', methods=['POST'])
