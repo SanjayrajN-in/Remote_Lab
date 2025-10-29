@@ -899,6 +899,9 @@
                             <button id="logicAnalyzerBtn" class="oscilloscope-btn" onclick="toggleLogicAnalyzer()">
                                 Start Logic Analyzer
                             </button>
+                            <button id="logicPauseBtn" class="oscilloscope-btn" onclick="toggleLogicPause()" style="display: none;">
+                                Pause
+                            </button>
                             <div class="control-group">
                                 <span class="control-label">Channel:</span>
                                 <select id="channelSelect" class="control-input">
@@ -977,12 +980,15 @@
         let logicAnalyzerCanvas = null;
         let logicAnalyzerCtx = null;
         let logicAnalyzerData = {
-            ch1_data: [], ch2_data: [], timestamps: []
+            ch1_data: [], ch2_data: [], timestamps: [],
+            ch1_frequency: 0, ch1_duty_cycle: 0,
+            ch2_frequency: 0, ch2_duty_cycle: 0
         };
         let logicChannelMode = 'both';
         let logicTimebase = 0.001;
         let logicAmplitudeScale = 1.0;
         let logicAnimationId = null;
+        let logicAnimationPaused = false;
 
         // Cooldown variables for buttons
         let lastSerialToggleTime = 0;
@@ -1587,11 +1593,14 @@
 
         function toggleLogicAnalyzer() {
             const btn = document.getElementById('logicAnalyzerBtn');
+            const pauseBtn = document.getElementById('logicPauseBtn');
             if (logicAnalyzerActive) {
                 // Stop logic analyzer
                 logicAnalyzerActive = false;
+                logicAnimationPaused = false;
                 btn.textContent = 'Start Logic Analyzer';
                 btn.classList.remove('active');
+                pauseBtn.style.display = 'none';
                 if (logicAnimationId) {
                     cancelAnimationFrame(logicAnimationId);
                     logicAnimationId = null;
@@ -1601,8 +1610,11 @@
             } else {
                 // Start logic analyzer
                 logicAnalyzerActive = true;
+                logicAnimationPaused = false;
                 btn.textContent = 'Stop Logic Analyzer';
                 btn.classList.add('active');
+                pauseBtn.textContent = 'Pause';
+                pauseBtn.style.display = 'inline-block';
                 logicAnalyzerData = {
                     ch1_pos: [], ch1_neg: [], ch2_pos: [], ch2_neg: [],
                     ch1_logic: [], ch2_logic: [], timestamps: []
@@ -1626,6 +1638,18 @@
             }
         }
 
+        function toggleLogicPause() {
+            const pauseBtn = document.getElementById('logicPauseBtn');
+            logicAnimationPaused = !logicAnimationPaused;
+            pauseBtn.textContent = logicAnimationPaused ? 'Resume' : 'Pause';
+            pauseBtn.classList.toggle('active', logicAnimationPaused);
+
+            if (!logicAnimationPaused) {
+                // Resume: draw immediately to show current data
+                drawLogicAnalyzer();
+            }
+        }
+
         function startLogicAnalyzerAnimation() {
             function animate() {
                 if (logicAnalyzerActive) {
@@ -1639,7 +1663,7 @@
         function handleLogicAnalyzerData(data) {
             if (!logicAnalyzerActive) return;
 
-            // Update data buffers with simplified differential data
+            // Update data buffers with live streaming data
             if (data.ch1_data) {
                 logicAnalyzerData.ch1_data = data.ch1_data;
             }
@@ -1650,12 +1674,31 @@
                 logicAnalyzerData.timestamps = data.timestamps;
             }
 
+            // Update frequency data
+            if (data.ch1_frequency !== undefined) {
+                logicAnalyzerData.ch1_frequency = data.ch1_frequency;
+            }
+            if (data.ch1_duty_cycle !== undefined) {
+                logicAnalyzerData.ch1_duty_cycle = data.ch1_duty_cycle;
+            }
+            if (data.ch2_frequency !== undefined) {
+                logicAnalyzerData.ch2_frequency = data.ch2_frequency;
+            }
+            if (data.ch2_duty_cycle !== undefined) {
+                logicAnalyzerData.ch2_duty_cycle = data.ch2_duty_cycle;
+            }
+
             // Update scaling parameters from server
             if (data.timebase !== undefined) {
                 logicTimebase = data.timebase;
             }
             if (data.scale !== undefined) {
                 logicAmplitudeScale = data.scale;
+            }
+
+            // Only draw if animation is not paused
+            if (!logicAnimationPaused) {
+                drawLogicAnalyzer();
             }
         }
 
@@ -1936,6 +1979,8 @@
                 console.error('Error updating logic analyzer config:', error);
             });
         }
+
+
 
         // Audio Playback Functions - Optimized for independent operation
         // Server sends audio at 48kHz, client processes with Web Audio API

@@ -56,6 +56,9 @@ class LogicAnalyzerManager:
         self.timebase = 0.001      # 1ms/div default
         self.amplitude_scale = 1.0
 
+        # Frequency analysis parameters
+        self.frequency_buffer_size = 5000  # Samples to use for frequency analysis
+
         # Threading
         self.acquisition_thread = None
         self.stream_thread = None
@@ -188,6 +191,8 @@ class LogicAnalyzerManager:
 
 
 
+
+
     def _acquisition_loop(self):
         """Simple acquisition loop - just read GPIO pins and compute differences"""
         sample_interval = 1.0 / self.sampling_rate
@@ -232,96 +237,80 @@ class LogicAnalyzerManager:
 
         print(f"Acquisition loop ended. Total samples: {sample_count}")
 
-    def _check_trigger_condition(self, current_value, previous_value, edge, level):
-        """Check if trigger condition is met"""
-        if previous_value is None:
-            return False
-
-        # Convert level to digital threshold (0.5 = midpoint)
-        threshold = level
-
-        if edge == 'rising':
-            return previous_value < threshold and current_value >= threshold
-        elif edge == 'falling':
-            return previous_value > threshold and current_value <= threshold
-        elif edge == 'both':
-            return (previous_value < threshold and current_value >= threshold) or \
-                   (previous_value > threshold and current_value <= threshold)
-
-        return False
-
-    def _analyze_pwm_signal(self, data, timestamps):
-        """Analyze PWM signal to calculate frequency and duty cycle"""
-        if len(data) < 10 or len(timestamps) < 10:
+    def _analyze_signal_frequency(self, data, timestamps):
+        """Analyze signal to calculate frequency and duty cycle for any periodic signal"""
+        if len(data) < 20 or len(timestamps) < 20:
             return 0.0, 0.0
 
         try:
             # Convert to numpy arrays for efficient processing
-            signal = np.array(data)
-            times = np.array(timestamps)
+            signal = np.array(data, dtype=float)
+            times = np.array(timestamps, dtype=float)
 
-            # Find edges (transitions)
-            diff_signal = np.diff(signal.astype(int))
-            rising_edges = np.where(diff_signal == 1)[0] + 1
-            falling_edges = np.where(diff_signal == -1)[0] + 1
+            # For differential signals, consider +1 as high, -1 as low, 0 as neutral
+            # Convert to binary signal for frequency analysis (high/low transitions)
+            binary_signal = np.where(signal > 0.5, 1.0, 0.0)  # +1 becomes 1, others become 0
 
-            if len(rising_edges) < 2 and len(falling_edges) < 2:
-                # No clear PWM pattern, try to estimate from signal levels
-                high_count = np.sum(signal >= 0.5)
-                total_count = len(signal)
-                if total_count > 0:
-                    duty_cycle = (high_count / total_count) * 100.0
-                else:
-                    duty_cycle = 0.0
+            # Find transitions (edges) where signal changes
+            diff_signal = np.diff(binary_signal)
+            edge_indices = np.where(np.abs(diff_signal) > 0.5)[0] + 1  # Find where signal changes
 
-                # Estimate frequency from zero crossings or signal changes
-                changes = np.where(np.diff(signal.astype(int)) != 0)[0]
-                if len(changes) >= 4:  # Need at least 2 full cycles
-                    # Calculate period from average distance between changes
-                    periods = np.diff(times[changes])
-                    if len(periods) > 0:
-                        avg_period = np.mean(periods)
-                        frequency = 1.0 / avg_period if avg_period > 0 else 0.0
-                    else:
-                        frequency = 0.0
-                else:
-                    frequency = 0.0
-
-                return frequency, duty_cycle
-
-            # Analyze PWM pattern
-            all_edges = np.sort(np.concatenate([rising_edges, falling_edges]))
-            if len(all_edges) < 4:  # Need at least 2 full cycles
+            if len(edge_indices) < 4:  # Need at least 2 full cycles (4 edges minimum)
                 return 0.0, 0.0
 
-            # Calculate periods between rising edges
-            if len(rising_edges) >= 2:
-                periods = np.diff(times[rising_edges])
-                avg_period = np.mean(periods)
-                frequency = 1.0 / avg_period if avg_period > 0 else 0.0
-            else:
-                # Fallback: use time span and edge count
-                time_span = times[-1] - times[0]
-                edge_count = len(all_edges)
-                if time_span > 0 and edge_count > 0:
-                    # Estimate frequency from edges per second
-                    frequency = edge_count / (2 * time_span)  # Divide by 2 for full cycles
-                else:
-                    frequency = 0.0
+            # Get edge timestamps
+            edge_times = times[edge_indices]
 
-            # Calculate duty cycle
+            # Calculate periods between consecutive rising edges (more stable for frequency)
+            rising_edges = []
+            for i in range(1, len(edge_indices)):
+                prev_idx = edge_indices[i-1]
+                curr_idx = edge_indices[i]
+                # Check if this is a rising edge (0 to 1 transition)
+                if binary_signal[prev_idx] < 0.5 and binary_signal[curr_idx] > 0.5:
+                    rising_edges.append(times[curr_idx])
+
+            if len(rising_edges) < 2:
+                # Fallback: use all edges if no clear rising edges
+                periods = np.diff(edge_times)
+            else:
+                periods = np.diff(np.array(rising_edges))
+
+            if len(periods) < 2:
+                return 0.0, 0.0
+
+            # Filter out unrealistic periods based on sampling rate and expected frequency range
+            sampling_interval = np.mean(np.diff(times)) if len(times) > 1 else 0.00001
+            min_period = sampling_interval * 2  # At least 2 samples per period
+            max_period = 1.0  # Maximum 1 second period (1 Hz minimum)
+
+            # For stepper motors and similar signals, allow lower frequencies
+            if np.mean(periods) > 0.01:  # If average period > 10ms, likely stepper motor
+                max_period = 1.0  # Allow down to 1 Hz
+            else:
+                max_period = 0.1  # For higher frequencies, limit to 10 Hz max period
+
+            valid_periods = periods[(periods >= min_period) & (periods <= max_period)]
+
+            if len(valid_periods) < 2:
+                return 0.0, 0.0
+
+            # Use median instead of mean for better robustness against outliers
+            median_period = np.median(valid_periods)
+            frequency = 1.0 / median_period if median_period > 0 else 0.0
+
+            # Calculate duty cycle more accurately
+            # For the signal segments between edges
             high_time = 0.0
             total_time = times[-1] - times[0]
 
-            # Calculate time spent high
-            for i in range(len(rising_edges)):
-                rise_idx = rising_edges[i]
-                if i < len(falling_edges):
-                    fall_idx = falling_edges[i]
-                    if fall_idx > rise_idx:
-                        high_time += times[fall_idx] - times[rise_idx]
-
             if total_time > 0:
+                # Count time spent in high state
+                for i in range(len(binary_signal) - 1):
+                    if binary_signal[i] > 0.5:  # High state
+                        segment_time = times[i + 1] - times[i]
+                        high_time += segment_time
+
                 duty_cycle = (high_time / total_time) * 100.0
             else:
                 duty_cycle = 0.0
@@ -329,7 +318,7 @@ class LogicAnalyzerManager:
             return frequency, duty_cycle
 
         except Exception as e:
-            print(f"Error analyzing PWM signal: {e}")
+            print(f"Error analyzing signal: {e}")
             return 0.0, 0.0
 
     def _streaming_loop(self):
@@ -346,32 +335,51 @@ class LogicAnalyzerManager:
                 current_time = time.time()
                 stream_count += 1
 
-                # Get buffer sizes
+                # Send live streaming data
                 buffer_size = len(self.ch1_diff_buffer)
                 if buffer_size == 0:
                     continue
 
-                # Send last 2000 samples to prevent browser overload
-                max_samples = min(2000, buffer_size)
+                # Send last frequency_buffer_size samples for accurate frequency analysis
+                max_samples = min(self.frequency_buffer_size, buffer_size)
                 start_idx = max(0, buffer_size - max_samples)
 
-                # Prepare data for frontend
+                # Get data slices
+                ch1_data = list(self.ch1_diff_buffer)[start_idx:]
+                ch2_data = list(self.ch2_diff_buffer)[start_idx:]
+                timestamps = list(self.timestamp_buffer)[start_idx:]
+
+                # Calculate frequency for each channel using the full buffer for accuracy
+                ch1_freq, ch1_duty = self._analyze_signal_frequency(ch1_data, timestamps)
+                ch2_freq, ch2_duty = self._analyze_signal_frequency(ch2_data, timestamps)
+
+                # Prepare data for frontend - send last 2000 samples for display
+                display_samples = min(2000, buffer_size)
+                display_start_idx = max(0, buffer_size - display_samples)
+                display_ch1_data = list(self.ch1_diff_buffer)[display_start_idx:]
+                display_ch2_data = list(self.ch2_diff_buffer)[display_start_idx:]
+                display_timestamps = list(self.timestamp_buffer)[display_start_idx:]
+
                 data_to_send = {
                     'timestamp': current_time,
                     'sampling_rate': self.sampling_rate,
                     'timebase': self.timebase,
                     'scale': self.amplitude_scale,
                     'channel_mode': self.channel_mode,
-                    'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
-                    'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
-                    'timestamps': list(self.timestamp_buffer)[start_idx:]
+                    'ch1_data': display_ch1_data,
+                    'ch2_data': display_ch2_data,
+                    'timestamps': display_timestamps,
+                    'ch1_frequency': ch1_freq,
+                    'ch1_duty_cycle': ch1_duty,
+                    'ch2_frequency': ch2_freq,
+                    'ch2_duty_cycle': ch2_duty
                 }
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)
 
                 if stream_count % 10 == 0:
-                    print(f"Stream {stream_count}: Sent {max_samples} samples")
+                    print(f"Stream {stream_count}: Sent {display_samples} samples, CH1: {ch1_freq:.1f}Hz ({ch1_duty:.1f}%), CH2: {ch2_freq:.1f}Hz ({ch2_duty:.1f}%)")
 
             except Exception as e:
                 print(f"Logic analyzer streaming error: {e}")

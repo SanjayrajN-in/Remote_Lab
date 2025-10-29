@@ -838,17 +838,12 @@ def configure_logic_analyzer():
             logic_analyzer_manager.set_timebase(data['timebase'])
         if 'amplitude_scale' in data:
             logic_analyzer_manager.set_amplitude_scale(data['amplitude_scale'])
-        if 'trigger' in data:
-            trigger_data = data['trigger']
-            logic_analyzer_manager.set_trigger(
-                trigger_data.get('enabled', False),
-                trigger_data.get('channel', 1),
-                trigger_data.get('edge', 'rising')
-            )
 
         return jsonify({'status': 'configured'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
 
 def print_network_info():
     """Print network information on startup"""
