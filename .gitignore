@@ -1,0 +1,11 @@
+venv/
+Working/
+NotWorking/
+pigpio/
+__pycache__/
+*.hex
+*.bin
+remotelab.zip
+*.log
+*.tmp
+*.bak
