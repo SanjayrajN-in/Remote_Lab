@@ -792,6 +792,11 @@ initialize_logic_analyzer()
 def start_logic_analyzer():
     """Start logic analyzer acquisition"""
     try:
+        # Check if mode is specified in query parameters
+        mode = request.args.get('mode', 'internal')
+        if mode in ['internal', 'external']:
+            logic_analyzer_manager.set_mode(mode)
+
         success, message = logic_analyzer_manager.start_acquisition()
         if success:
             return jsonify({'status': 'started', 'message': message}), 200
@@ -838,6 +843,8 @@ def configure_logic_analyzer():
             logic_analyzer_manager.set_timebase(data['timebase'])
         if 'amplitude_scale' in data:
             logic_analyzer_manager.set_amplitude_scale(data['amplitude_scale'])
+        if 'analyzer_type' in data:
+            logic_analyzer_manager.set_mode(data['analyzer_type'])
 
         return jsonify({'status': 'configured'}), 200
     except Exception as e:
@@ -881,7 +888,7 @@ if __name__ == '__main__':
     else:
         print("Starting in DEVELOPMENT mode...")
         # In development, use debug mode
-        socketio.run(app, debug=True, host='0.0.0.0', port=5000)
+        socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)
 
 # For Gunicorn deployment (WSGI application for HTTP requests only)
 # Note: WebSocket/SocketIO connections require eventlet worker class
