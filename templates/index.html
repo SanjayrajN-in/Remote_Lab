@@ -95,6 +95,7 @@
             background: #252525;
             border-right: 1px solid #404040;
             padding: 20px;
+            padding-right: 30px; /* Extra padding to prevent hover clipping */
             overflow-y: auto;
             display: flex;
             flex-direction: column;
@@ -181,8 +182,6 @@
             display: flex;
             flex-direction: column;
             gap: 12px;
-            max-height: 400px;
-            overflow-y: auto;
         }
 
         .device-item {
@@ -1189,7 +1188,7 @@
                                         </div>
                                         <div class="control-group">
                                             <span class="control-label">Timebase:</span>
-                                            <input type="range" id="logicTimebaseInput" class="control-input" min="0.0005" max="0.05" step="0.0005" value="0.001">
+                                            <input type="range" id="logicTimebaseInput" class="control-input" min="0.0005" max="1.0" step="0.0005" value="0.001">
                                         </div>
                                         <div class="control-group">
                                             <span class="control-label">Amplitude:</span>
@@ -2283,7 +2282,10 @@
             const width = logicAnalyzerCanvas.width;
             const height = logicAnalyzerCanvas.height;
             const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
-            const pixelsPerSecond = width / (timeSpan * logicTimebase);
+
+            // Scale the actual data time span to fill the canvas width
+            // This ensures the waveform always fills the available space
+            const pixelsPerSecond = timeSpan > 0 ? width / timeSpan : width / 0.01; // Fallback for safety
 
             // 3 horizontal lines: -1, 0, +1
             const plus1Y = baselineY - 40 * logicAmplitudeScale;  // +1 line
@@ -2356,10 +2358,7 @@
                 lastX = x;
             }
 
-            // Complete to end of canvas
-            if (lastX < width) {
-                logicAnalyzerCtx.lineTo(width, lastY);
-            }
+
 
             logicAnalyzerCtx.stroke();
 
