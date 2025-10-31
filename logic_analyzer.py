@@ -12,8 +12,7 @@ except ImportError:
     LGPIO_AVAILABLE = False
     print("lgpio not available - GPIO logic analyzer will not function")
 
-# Import external logic analyzer
-from external_logic_analyzer import ExternalLogicAnalyzer
+
 
 # Global instances
 _logic_analyzer_manager = None
@@ -37,11 +36,6 @@ class LogicAnalyzerManager:
         self.acquiring = False
         self.lgpio_available = LGPIO_AVAILABLE
         self.chip = None
-        self.mode = 'internal'  # 'internal' or 'external'
-
-        # Initialize external logic analyzer
-        self.external_la = ExternalLogicAnalyzer()
-        self.serial_available = self.external_la.is_available()
 
         # GPIO pin configuration for stepper motor control
         self.PIN_CH1_POS = 17  # Channel 1 positive
@@ -103,34 +97,18 @@ class LogicAnalyzerManager:
         except Exception as e:
             print(f"Error cleaning up GPIO: {e}")
 
-    def initialize_external(self):
-        """Initialize external USB logic analyzer"""
-        return self.external_la.initialize()
-
-    def cleanup_external(self):
-        """Clean up external logic analyzer resources"""
-        self.external_la.cleanup()
-
     def initialize_hardware(self):
-        """Initialize hardware based on mode"""
-        if self.mode == 'internal':
-            return self.initialize_gpio()
-        elif self.mode == 'external':
-            return self.initialize_external()
+        """Initialize hardware"""
+        return self.initialize_gpio()
 
     def cleanup_hardware(self):
-        """Clean up hardware based on mode"""
-        if self.mode == 'internal':
-            self.cleanup_gpio()
-        elif self.mode == 'external':
-            self.cleanup_external()
+        """Clean up hardware"""
+        self.cleanup_gpio()
 
     def start_acquisition(self):
         """Start logic analyzer acquisition"""
-        if self.mode == 'internal' and not self.lgpio_available:
+        if not self.lgpio_available:
             return False, "lgpio not available"
-        elif self.mode == 'external' and not self.serial_available:
-            return False, "pyserial not available"
 
         if self.acquiring:
             return False, "Already acquiring"
@@ -148,7 +126,7 @@ class LogicAnalyzerManager:
             self.stop_event.clear()
 
             self.acquiring = True
-            print(f"Starting {self.mode} logic analyzer acquisition...")
+            print("Starting logic analyzer acquisition...")
 
             # Test socket connection
             self.socketio.emit('test_event', {'message': 'Logic analyzer started'})
@@ -165,7 +143,7 @@ class LogicAnalyzerManager:
             self.stream_thread.start()
             print("Streaming thread started")
 
-            return True, f"{self.mode.capitalize()} logic analyzer acquisition started"
+            return True, "Logic analyzer acquisition started"
         except Exception as e:
             self.stop_acquisition()
             return False, f"Failed to start acquisition: {str(e)}"
@@ -221,19 +199,14 @@ class LogicAnalyzerManager:
         except Exception as e:
             return False
 
-    def set_mode(self, mode):
-        """Set analyzer mode: 'internal' or 'external'"""
-        if mode in ['internal', 'external']:
-            self.mode = mode
-            return True
-        return False
+
 
 
 
 
 
     def _acquisition_loop(self):
-        """Acquisition loop for both internal GPIO and external USB logic analyzer"""
+        """Acquisition loop for internal GPIO logic analyzer"""
         sample_interval = 1.0 / self.sampling_rate
         last_sample_time = time.time()
         sample_count = 0
@@ -244,27 +217,15 @@ class LogicAnalyzerManager:
 
                 # Maintain sampling rate
                 if current_time - last_sample_time >= sample_interval:
-                    if self.mode == 'internal':
-                        # Read GPIO pins (0 or 1)
-                        ch1_pos = lgpio.gpio_read(self.chip, self.PIN_CH1_POS)
-                        ch1_neg = lgpio.gpio_read(self.chip, self.PIN_CH1_NEG)
-                        ch2_pos = lgpio.gpio_read(self.chip, self.PIN_CH2_POS)
-                        ch2_neg = lgpio.gpio_read(self.chip, self.PIN_CH2_NEG)
+                    # Read GPIO pins (0 or 1)
+                    ch1_pos = lgpio.gpio_read(self.chip, self.PIN_CH1_POS)
+                    ch1_neg = lgpio.gpio_read(self.chip, self.PIN_CH1_NEG)
+                    ch2_pos = lgpio.gpio_read(self.chip, self.PIN_CH2_POS)
+                    ch2_neg = lgpio.gpio_read(self.chip, self.PIN_CH2_NEG)
 
-                        # Compute differences: pos - neg gives +1, 0, or -1
-                        ch1_diff = ch1_pos - ch1_neg
-                        ch2_diff = ch2_pos - ch2_neg
-
-                    elif self.mode == 'external':
-                        # Read from external USB logic analyzer using the dedicated class
-                        ch1_diff, ch2_diff = self.external_la.read_channels()
-                        if ch1_diff is None or ch2_diff is None:
-                            # No valid data available, skip this sample
-                            time.sleep(0.001)
-                            continue
-                    else:
-                        print(f"Unknown mode: {self.mode}")
-                        break
+                    # Compute differences: pos - neg gives +1, 0, or -1
+                    ch1_diff = ch1_pos - ch1_neg
+                    ch2_diff = ch2_pos - ch2_neg
 
                     # Store the differential values
                     self.ch1_diff_buffer.append(ch1_diff)
@@ -441,8 +402,6 @@ class LogicAnalyzerManager:
         return {
             'acquiring': self.acquiring,
             'lgpio_available': self.lgpio_available,
-            'serial_available': self.serial_available,
-            'mode': self.mode,
             'sampling_rate': self.sampling_rate,
             'channel_mode': self.channel_mode,
             'timebase': self.timebase,

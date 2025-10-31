@@ -792,11 +792,6 @@ initialize_logic_analyzer()
 def start_logic_analyzer():
     """Start logic analyzer acquisition"""
     try:
-        # Check if mode is specified in query parameters
-        mode = request.args.get('mode', 'internal')
-        if mode in ['internal', 'external']:
-            logic_analyzer_manager.set_mode(mode)
-
         success, message = logic_analyzer_manager.start_acquisition()
         if success:
             return jsonify({'status': 'started', 'message': message}), 200
@@ -843,8 +838,6 @@ def configure_logic_analyzer():
             logic_analyzer_manager.set_timebase(data['timebase'])
         if 'amplitude_scale' in data:
             logic_analyzer_manager.set_amplitude_scale(data['amplitude_scale'])
-        if 'analyzer_type' in data:
-            logic_analyzer_manager.set_mode(data['analyzer_type'])
 
         return jsonify({'status': 'configured'}), 200
     except Exception as e:

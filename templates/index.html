@@ -454,6 +454,8 @@
             align-items: center;
             width: 100%;
             box-sizing: border-box;
+            min-height: 400px;
+            position: relative;
         }
 
         .oscilloscope-canvas {
@@ -480,18 +482,6 @@
         .logic-analyzer-container.scrollable {
             overflow-y: auto;
             overflow-x: hidden;
-        }
-
-        .oscilloscope-container {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 250px;
-        }
-
-        .oscilloscope-canvas {
-            flex: 1;
-            min-height: 200px;
         }
 
         /* Carousel Navigation */
@@ -550,20 +540,14 @@
         /* Carousel Slides */
         .carousel-slides {
             display: flex;
-            width: 100%; /* 3 slides */
+            width: 200%;
             transition: transform 0.4s ease;
         }
 
         .carousel-slide {
-            flex: 0 0 100%;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-
-        .carousel-slide.active {
-            opacity: 1;
-            pointer-events: auto;
+            flex: 0 0 50%;
+            width: 100%;
+            height: 100%;
         }
 
         .slide-placeholder {
@@ -601,16 +585,120 @@
         }
 
         .oscilloscope-controls {
-            display: flex;
-            gap: 10px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
             margin-top: 15px;
-            padding: 10px;
-            flex-wrap: wrap;
-            align-items: center;
+            padding: 8px;
             background: rgba(255, 255, 255, 0.02);
             border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.1);
-            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* Responsive breakpoints */
+        @media (max-width: 900px) {
+            .oscilloscope-controls {
+                gap: 6px;
+                padding: 6px;
+            }
+
+            .control-group {
+                min-width: 100px;
+                flex: 1;
+            }
+
+            .control-input {
+                min-width: 70px;
+                max-width: 100px;
+            }
+        }
+
+        @media (max-width: 700px) {
+            .oscilloscope-controls {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+                padding: 12px;
+            }
+
+            .oscilloscope-controls.responsive {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 12px;
+            }
+
+            .oscilloscope-controls.responsive .control-group {
+                justify-content: space-between;
+                min-width: unset;
+                flex: none;
+                width: 100%;
+                margin-bottom: 8px;
+            }
+
+            .oscilloscope-controls.responsive .control-input {
+                width: 140px;
+                min-width: 100px;
+                max-width: 140px;
+                flex-shrink: 0;
+            }
+
+            .oscilloscope-controls.responsive .oscilloscope-btn {
+                width: auto;
+                flex: 1;
+                margin: 2px 0;
+                min-width: 140px;
+                height: 36px;
+            }
+
+            .control-group {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                width: 100%;
+                min-width: unset;
+                flex: none;
+                margin-bottom: 8px;
+            }
+
+            .control-label {
+                flex-shrink: 0;
+                margin-right: 12px;
+                font-weight: 500;
+            }
+
+            .control-input {
+                flex: 1;
+                min-width: 100px;
+                max-width: 140px;
+                height: 32px;
+            }
+
+            .oscilloscope-btn {
+                flex: 1;
+                min-width: 120px;
+                height: 36px;
+                margin: 2px 0;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .oscilloscope-controls {
+                gap: 4px;
+                padding: 6px;
+            }
+
+            .control-input {
+                min-width: 60px;
+                max-width: 100px;
+            }
+
+            .oscilloscope-btn {
+                min-width: 80px;
+                padding: 6px 12px;
+                font-size: 0.85em;
+            }
         }
 
         .oscilloscope-btn {
@@ -1113,42 +1201,7 @@
                                 </div>
                             </div>
 
-                            <!-- Slide 2: External Logic Analyzer -->
-                            <div class="carousel-slide">
-                                <div class="slide-placeholder">
-                                    <h3>External Logic Analyzer</h3>
-                                </div>
-                                <div class="oscilloscope-container">
-                                    <canvas id="logicAnalyzerCanvas2" class="oscilloscope-canvas"></canvas>
-                                    <div class="oscilloscope-controls">
-                                        <button id="logicAnalyzerBtn2" class="oscilloscope-btn" onclick="toggleLogicAnalyzer2()">
-                                            Start External Logic Analyzer
-                                        </button>
-                                        <button id="logicPauseBtn2" class="oscilloscope-btn" onclick="toggleLogicPause2()" style="display: none;">
-                                            Pause
-                                        </button>
 
-                                        <div class="control-group">
-                                            <span class="control-label">Channel:</span>
-                                            <select id="channelSelect2" class="control-input">
-                                                <option value="both">Both</option>
-                                                <option value="ch1">Channel 1</option>
-                                                <option value="ch2">Channel 2</option>
-                                            </select>
-                                        </div>
-                                        <div class="control-group">
-                                            <span class="control-label">Timebase:</span>
-                                            <input type="range" id="logicTimebaseInput2" class="control-input" min="0.0005" max="0.05" step="0.0005" value="0.001">
-                                        </div>
-                                        <div class="control-group">
-                                            <span class="control-label">Amplitude:</span>
-                                            <input type="range" id="logicAmplitudeInput2" class="control-input" min="0.5" max="2.0" step="0.1" value="1.0">
-                                        </div>
-
-                                        <button class="oscilloscope-btn" onclick="clearLogicAnalyzer2()">Clear</button>
-                                    </div>
-                                </div>
-                            </div>
 
                             <!-- Slide 3: Serial Plot -->
                             <div class="carousel-slide">
@@ -1199,7 +1252,6 @@
                             <div class="carousel-dots">
                                 <span class="carousel-dot active" onclick="goToSlide(0)"></span>
                                 <span class="carousel-dot" onclick="goToSlide(1)"></span>
-                                <span class="carousel-dot" onclick="goToSlide(2)"></span>
                             </div>
                             <button class="carousel-btn" onclick="navigateCarousel(1)" title="Next">›</button>
                         </div>
@@ -1272,20 +1324,7 @@
         let logicAnimationId = null;
         let logicAnimationPaused = false;
 
-        // External Logic Analyzer variables (USB)
-        let logicAnalyzerActive2 = false;
-        let logicAnalyzerCanvas2 = null;
-        let logicAnalyzerCtx2 = null;
-        let logicAnalyzerData2 = {
-            ch1_data: [], ch2_data: [], timestamps: [],
-            ch1_frequency: 0, ch1_duty_cycle: 0,
-            ch2_frequency: 0, ch2_duty_cycle: 0
-        };
-        let logicChannelMode2 = 'both';
-        let logicTimebase2 = 0.001;
-        let logicAmplitudeScale2 = 1.0;
-        let logicAnimationId2 = null;
-        let logicAnimationPaused2 = false;
+
 
         // Serial Plot variables
         let serialPlotActive = false;
@@ -1319,7 +1358,6 @@
             // Initialize carousel and canvases
             initializeCarousel();
             initializeLogicAnalyzer();
-            initializeLogicAnalyzer2();
             initializeSerialPlot();
 
             // Initialize carousel to first slide
@@ -1333,26 +1371,47 @@
                     resizeCanvases();
                 }, 250);
             });
+
+            // Set up ResizeObserver for dynamic container resizing
+            const logicAnalyzerContainer = document.querySelector('.logic-analyzer-container');
+            if (logicAnalyzerContainer && window.ResizeObserver) {
+                const resizeObserver = new ResizeObserver(function(entries) {
+                    // Debounce container resize events
+                    clearTimeout(window.containerResizeTimeout);
+                    window.containerResizeTimeout = setTimeout(function() {
+                        resizeCanvases();
+                    }, 100);
+                });
+                resizeObserver.observe(logicAnalyzerContainer);
+            }
         });
 
         function resizeCanvases() {
+            // Resize logic analyzer canvas
+            resizeLogicAnalyzerCanvas();
+
+            // Resize serial plot canvas
+            resizeSerialPlotCanvas();
+
+            // Update control panel responsiveness
+            updateControlPanelResponsiveness();
+        }
+
+        function updateControlPanelResponsiveness() {
+            const controlPanels = document.querySelectorAll('.oscilloscope-controls');
             const container = document.querySelector('.logic-analyzer-container');
-            if (!container) return;
 
-            const newWidth = container.clientWidth * 0.9;
+            if (container && controlPanels.length > 0) {
+                const containerWidth = container.clientWidth;
+                const responsiveBreakpoint = 600; // Switch to responsive layout below this width
 
-            // Resize all canvases
-            if (logicAnalyzerCanvas) {
-                logicAnalyzerCanvas.width = newWidth;
-                drawLogicAnalyzer();
-            }
-            if (logicAnalyzerCanvas2) {
-                logicAnalyzerCanvas2.width = newWidth;
-                drawLogicAnalyzer2();
-            }
-            if (serialPlotCanvas) {
-                serialPlotCanvas.width = newWidth;
-                drawSerialPlot();
+                controlPanels.forEach(panel => {
+                    if (containerWidth < responsiveBreakpoint) {
+                        panel.classList.add('responsive');
+                    } else {
+                        panel.classList.remove('responsive');
+                    }
+                });
             }
         }
 
@@ -1415,9 +1474,8 @@
 
             socket.on('logic_analyzer_data', function(data) {
                 console.log('Received logic_analyzer_data event:', data);
-                // Route data to the appropriate active analyzer
+                // Route data to the active analyzer
                 if (logicAnalyzerActive) handleLogicAnalyzerData(data);
-                if (logicAnalyzerActive2) handleLogicAnalyzerData2(data);
             });
 
             socket.on('test_event', function(data) {
@@ -1929,16 +1987,8 @@
             }
             logicAnalyzerCtx = logicAnalyzerCanvas.getContext('2d');
 
-            // Set canvas size to match container
-            setTimeout(() => {
-                const container = document.querySelector('.logic-analyzer-container');
-                if (container) {
-                    // Set canvas width to 90% of container width for better fit
-                    logicAnalyzerCanvas.width = container.clientWidth * 0.9;
-                    logicAnalyzerCanvas.height = 250;
-                    drawLogicAnalyzer(); // Redraw with correct size
-                }
-            }, 100);
+            // Set initial canvas size
+            resizeLogicAnalyzerCanvas();
 
             // Set up controls - channel selection is dynamic
             const channelSelect = document.getElementById('channelSelect');
@@ -1949,8 +1999,6 @@
                     drawLogicAnalyzer();
                 });
             }
-
-
 
             const timebaseInput = document.getElementById('logicTimebaseInput');
             if (timebaseInput) {
@@ -1970,6 +2018,34 @@
 
             // Draw initial grid
             drawLogicAnalyzer();
+        }
+
+        function resizeLogicAnalyzerCanvas() {
+            if (!logicAnalyzerCanvas) return;
+
+            const container = document.querySelector('.logic-analyzer-container');
+            if (container) {
+                const containerWidth = container.clientWidth;
+                const containerHeight = container.clientHeight;
+
+                // Get actual controls height dynamically
+                const controls = container.querySelector('.oscilloscope-controls');
+                const nav = container.querySelector('.carousel-nav');
+                const controlsHeight = controls ? controls.offsetHeight : 120;
+                const navHeight = nav ? nav.offsetHeight : 60;
+
+                // Calculate available height for canvas
+                const availableHeight = Math.max(200, containerHeight - controlsHeight - navHeight - 40); // 40px for padding
+
+                // Set canvas dimensions
+                logicAnalyzerCanvas.width = containerWidth;
+                logicAnalyzerCanvas.height = availableHeight;
+
+                // Redraw if context exists
+                if (logicAnalyzerCtx) {
+                    drawLogicAnalyzer();
+                }
+            }
         }
 
         function toggleLogicAnalyzer() {
@@ -2556,406 +2632,20 @@
             console.log('Audio processor cleanup handled separately');
         }
 
-        // Second Logic Analyzer Functions (External USB)
-        function initializeLogicAnalyzer2() {
-            logicAnalyzerCanvas2 = document.getElementById('logicAnalyzerCanvas2');
-            logicAnalyzerCtx2 = logicAnalyzerCanvas2.getContext('2d');
 
-            // Set canvas size to match container
-            setTimeout(() => {
-                const container = document.querySelector('.logic-analyzer-container');
-                if (container) {
-                    // Set canvas width to 90% of container width for better fit
-                    logicAnalyzerCanvas2.width = container.clientWidth * 0.9;
-                    logicAnalyzerCanvas2.height = 250;
-                    drawLogicAnalyzer2(); // Redraw with correct size
-                }
-            }, 100);
-
-            // Set up controls - channel selection is dynamic
-            document.getElementById('channelSelect2').addEventListener('change', function() {
-                logicChannelMode2 = this.value;
-                // Update immediately without server call
-                drawLogicAnalyzer2();
-            });
-
-            document.getElementById('logicTimebaseInput2').addEventListener('input', function() {
-                logicTimebase2 = parseFloat(this.value);
-                updateLogicAnalyzerConfig2();
-            });
-
-            document.getElementById('logicAmplitudeInput2').addEventListener('input', function() {
-                logicAmplitudeScale2 = parseFloat(this.value);
-                updateLogicAnalyzerConfig2();
-            });
-
-            // Draw initial grid
-            drawLogicAnalyzer2();
-        }
-
-        function toggleLogicAnalyzer2() {
-            const btn = document.getElementById('logicAnalyzerBtn2');
-            const pauseBtn = document.getElementById('logicPauseBtn2');
-            if (logicAnalyzerActive2) {
-                // Stop logic analyzer
-                logicAnalyzerActive2 = false;
-                logicAnimationPaused2 = false;
-                btn.textContent = 'Start External Logic Analyzer';
-                btn.classList.remove('active');
-                pauseBtn.style.display = 'none';
-                if (logicAnimationId2) {
-                    cancelAnimationFrame(logicAnimationId2);
-                    logicAnimationId2 = null;
-                }
-                // Stop acquisition on server - use external mode
-                fetch('/logic/stop', { method: 'POST' });
-            } else {
-                // Start logic analyzer
-                logicAnalyzerActive2 = true;
-                logicAnimationPaused2 = false;
-                btn.textContent = 'Stop External Logic Analyzer';
-                btn.classList.add('active');
-                pauseBtn.textContent = 'Pause';
-                pauseBtn.style.display = 'inline-block';
-                logicAnalyzerData2 = {
-                    ch1_data: [], ch2_data: [], timestamps: []
-                };
-                // Start acquisition on server with external mode
-                fetch('/logic/start?mode=external', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'error') {
-                            alert('Error starting external logic analyzer: ' + data.message);
-                            toggleLogicAnalyzer2(); // Stop if failed
-                        } else {
-                            startLogicAnalyzerAnimation2();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error starting external logic analyzer:', error);
-                        alert('Failed to start external logic analyzer');
-                        toggleLogicAnalyzer2(); // Stop if failed
-                    });
-            }
-        }
-
-        function toggleLogicPause2() {
-            const pauseBtn = document.getElementById('logicPauseBtn2');
-            logicAnimationPaused2 = !logicAnimationPaused2;
-            pauseBtn.textContent = logicAnimationPaused2 ? 'Resume' : 'Pause';
-            pauseBtn.classList.toggle('active', logicAnimationPaused2);
-
-            if (!logicAnimationPaused2) {
-                // Resume: draw immediately to show current data
-                drawLogicAnalyzer2();
-            }
-        }
-
-        function startLogicAnalyzerAnimation2() {
-            function animate() {
-                if (logicAnalyzerActive2) {
-                    drawLogicAnalyzer2();
-                    logicAnimationId2 = requestAnimationFrame(animate);
-                }
-            }
-            animate();
-        }
-
-        function handleLogicAnalyzerData2(data) {
-            if (!logicAnalyzerActive2) return;
-
-            // Update data buffers with live streaming data
-            if (data.ch1_data) {
-                logicAnalyzerData2.ch1_data = data.ch1_data;
-            }
-            if (data.ch2_data) {
-                logicAnalyzerData2.ch2_data = data.ch2_data;
-            }
-            if (data.timestamps) {
-                logicAnalyzerData2.timestamps = data.timestamps;
-            }
-
-            // Update frequency data
-            if (data.ch1_frequency !== undefined) {
-                logicAnalyzerData2.ch1_frequency = data.ch1_frequency;
-            }
-            if (data.ch1_duty_cycle !== undefined) {
-                logicAnalyzerData2.ch1_duty_cycle = data.ch1_duty_cycle;
-            }
-            if (data.ch2_frequency !== undefined) {
-                logicAnalyzerData2.ch2_frequency = data.ch2_frequency;
-            }
-            if (data.ch2_duty_cycle !== undefined) {
-                logicAnalyzerData2.ch2_duty_cycle = data.ch2_duty_cycle;
-            }
-
-            // Update scaling parameters from server
-            if (data.timebase !== undefined) {
-                logicTimebase2 = data.timebase;
-            }
-            if (data.scale !== undefined) {
-                logicAmplitudeScale2 = data.scale;
-            }
-
-            // Only draw if animation is not paused
-            if (!logicAnimationPaused2) {
-                drawLogicAnalyzer2();
-            }
-        }
-
-        function drawLogicAnalyzer2() {
-            if (!logicAnalyzerCtx2 || !logicAnalyzerCanvas2) return;
-
-            const width = logicAnalyzerCanvas2.width;
-            const height = logicAnalyzerCanvas2.height;
-            const centerY = height / 2;
-
-            // Clear canvas
-            logicAnalyzerCtx2.fillStyle = '#110000'; // Dark red tint for slide 2
-            logicAnalyzerCtx2.fillRect(0, 0, width, height);
-
-            // Draw grid
-            logicAnalyzerCtx2.strokeStyle = '#333';
-            logicAnalyzerCtx2.lineWidth = 1;
-
-            // Vertical grid lines
-            for (let x = 0; x < width; x += width / 10) {
-                logicAnalyzerCtx2.beginPath();
-                logicAnalyzerCtx2.moveTo(x, 0);
-                logicAnalyzerCtx2.lineTo(x, height);
-                logicAnalyzerCtx2.stroke();
-            }
-
-            // Horizontal grid lines
-            for (let y = 0; y < height; y += height / 8) {
-                logicAnalyzerCtx2.beginPath();
-                logicAnalyzerCtx2.moveTo(0, y);
-                logicAnalyzerCtx2.lineTo(width, y);
-                logicAnalyzerCtx2.stroke();
-            }
-
-            // Draw baselines - for differential logic analyzer, both channels share the same center line
-            let centerBaselineY = height * 0.5;
-            let ch1BaselineY, ch2BaselineY;
-
-            if (logicChannelMode2 === 'both') {
-                // Both channels use the same center line for phase comparison
-                ch1BaselineY = centerBaselineY;
-                ch2BaselineY = centerBaselineY;
-            } else {
-                // Single channel uses center line
-                ch1BaselineY = centerBaselineY;
-                ch2BaselineY = centerBaselineY;
-            }
-
-            logicAnalyzerCtx2.strokeStyle = '#888';
-            logicAnalyzerCtx2.lineWidth = 2;
-
-            // Draw center reference line when both channels are active
-            if (logicChannelMode2 === 'both') {
-                logicAnalyzerCtx2.strokeStyle = '#666';
-                logicAnalyzerCtx2.setLineDash([5, 5]);
-                logicAnalyzerCtx2.beginPath();
-                logicAnalyzerCtx2.moveTo(0, centerBaselineY);
-                logicAnalyzerCtx2.lineTo(width, centerBaselineY);
-                logicAnalyzerCtx2.stroke();
-                logicAnalyzerCtx2.setLineDash([]); // Reset dash
-            }
-
-            // Draw individual channel baselines
-            logicAnalyzerCtx2.strokeStyle = '#888';
-            if (logicChannelMode2 === 'ch1' || logicChannelMode2 === 'both') {
-                logicAnalyzerCtx2.beginPath();
-                logicAnalyzerCtx2.moveTo(0, ch1BaselineY);
-                logicAnalyzerCtx2.lineTo(width, ch1BaselineY);
-                logicAnalyzerCtx2.stroke();
-            }
-
-            if (logicChannelMode2 === 'ch2' || logicChannelMode2 === 'both') {
-                logicAnalyzerCtx2.beginPath();
-                logicAnalyzerCtx2.moveTo(0, ch2BaselineY);
-                logicAnalyzerCtx2.lineTo(width, ch2BaselineY);
-                logicAnalyzerCtx2.stroke();
-            }
-
-            // Channel labels and data
-            logicAnalyzerCtx2.fillStyle = '#fff';
-            logicAnalyzerCtx2.font = '16px monospace';
-
-            // Draw channel data - simple 3-level plot (-1, 0, +1)
-            if (logicChannelMode2 === 'ch1' || logicChannelMode2 === 'both') {
-                if (logicAnalyzerData2.ch1_data && logicAnalyzerData2.ch1_data.length > 1) {
-                    drawDifferentialChannel2(logicAnalyzerData2.ch1_data, logicAnalyzerData2.timestamps, '#00ff00', ch1BaselineY, 'CH1');
-                }
-            }
-
-            if (logicChannelMode2 === 'ch2' || logicChannelMode2 === 'both') {
-                if (logicAnalyzerData2.ch2_data && logicAnalyzerData2.ch2_data.length > 1) {
-                    drawDifferentialChannel2(logicAnalyzerData2.ch2_data, logicAnalyzerData2.timestamps, '#0000ff', ch2BaselineY, 'CH2');
-                }
-            }
-
-            // Draw info
-            logicAnalyzerCtx2.fillStyle = '#fff';
-            logicAnalyzerCtx2.font = '12px monospace';
-            logicAnalyzerCtx2.fillText(`Timebase: ${(logicTimebase2 * 1000).toFixed(1)}ms`, 10, height - 40);
-            logicAnalyzerCtx2.fillText(`Scale: ${logicAmplitudeScale2.toFixed(1)}x`, 10, height - 20);
-            logicAnalyzerCtx2.fillText(`Mode: ${logicChannelMode2} (External)`, 10, height - 60);
-
-            // Display frequency and duty cycle
-            if (logicAnalyzerData2.ch1_frequency && logicAnalyzerData2.ch1_frequency > 0) {
-                const freqText = logicAnalyzerData2.ch1_frequency >= 1000 ?
-                    `${(logicAnalyzerData2.ch1_frequency/1000).toFixed(1)}kHz` :
-                    `${logicAnalyzerData2.ch1_frequency.toFixed(1)}Hz`;
-                logicAnalyzerCtx2.fillText(`CH1: ${freqText} ${logicAnalyzerData2.ch1_duty_cycle?.toFixed(1) || 0}%`, 10, 20);
-            }
-            if (logicAnalyzerData2.ch2_frequency && logicAnalyzerData2.ch2_frequency > 0) {
-                const freqText = logicAnalyzerData2.ch2_frequency >= 1000 ?
-                    `${(logicAnalyzerData2.ch2_frequency/1000).toFixed(1)}kHz` :
-                    `${logicAnalyzerData2.ch2_frequency.toFixed(1)}Hz`;
-                logicAnalyzerCtx2.fillText(`CH2: ${freqText} ${logicAnalyzerData2.ch2_duty_cycle?.toFixed(1) || 0}%`, 10, 40);
-            }
-        }
-
-        function drawDifferentialChannel2(data, timestamps, color, baselineY, label) {
-            if (data.length < 2 || timestamps.length < 2) {
-                return;
-            }
-
-            const width = logicAnalyzerCanvas2.width;
-            const height = logicAnalyzerCanvas2.height;
-            const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
-            const pixelsPerSecond = width / (timeSpan * logicTimebase2);
-
-            // 3 horizontal lines: -1, 0, +1
-            const plus1Y = baselineY - 40 * logicAmplitudeScale2;  // +1 line
-            const zeroY = baselineY;                               // 0 line (center)
-            const minus1Y = baselineY + 40 * logicAmplitudeScale2; // -1 line
-
-            // Draw the 3 reference lines
-            logicAnalyzerCtx2.strokeStyle = '#666';
-            logicAnalyzerCtx2.lineWidth = 1;
-            logicAnalyzerCtx2.setLineDash([2, 2]);
-
-            logicAnalyzerCtx2.beginPath();
-            logicAnalyzerCtx2.moveTo(0, plus1Y);
-            logicAnalyzerCtx2.lineTo(width, plus1Y);
-            logicAnalyzerCtx2.stroke();
-
-            logicAnalyzerCtx2.beginPath();
-            logicAnalyzerCtx2.moveTo(0, zeroY);
-            logicAnalyzerCtx2.lineTo(width, zeroY);
-            logicAnalyzerCtx2.stroke();
-
-            logicAnalyzerCtx2.beginPath();
-            logicAnalyzerCtx2.moveTo(0, minus1Y);
-            logicAnalyzerCtx2.lineTo(width, minus1Y);
-            logicAnalyzerCtx2.stroke();
-
-            logicAnalyzerCtx2.setLineDash([]); // Reset dash
-
-            // Label the lines
-            logicAnalyzerCtx2.fillStyle = '#888';
-            logicAnalyzerCtx2.font = '10px monospace';
-            logicAnalyzerCtx2.fillText('+1', 5, plus1Y - 2);
-            logicAnalyzerCtx2.fillText('0', 5, zeroY - 2);
-            logicAnalyzerCtx2.fillText('-1', 5, minus1Y - 2);
-
-            // Plot the data as step function
-            logicAnalyzerCtx2.strokeStyle = color;
-            logicAnalyzerCtx2.lineWidth = 2;
-            logicAnalyzerCtx2.beginPath();
-
-            let lastValue = data[0];
-            let lastX = 0;
-            let lastY = lastValue === 1 ? plus1Y : (lastValue === 0 ? zeroY : minus1Y);
-
-            logicAnalyzerCtx2.moveTo(lastX, lastY);
-
-            // Step plot: horizontal lines with instant vertical transitions
-            for (let i = 1; i < data.length; i++) {
-                const currentValue = data[i];
-                const currentTime = timestamps[i];
-                const timeDiff = currentTime - timestamps[0];
-                const x = timeDiff * pixelsPerSecond;
-
-                // Stop if we exceed canvas width
-                if (x > width) break;
-
-                if (currentValue !== lastValue) {
-                    // Draw horizontal line to transition point
-                    logicAnalyzerCtx2.lineTo(x, lastY);
-                    // Instant vertical transition to new level
-                    const newY = currentValue === 1 ? plus1Y : (currentValue === 0 ? zeroY : minus1Y);
-                    logicAnalyzerCtx2.lineTo(x, newY);
-                    lastY = newY;
-                } else {
-                    // Continue horizontal line
-                    logicAnalyzerCtx2.lineTo(x, lastY);
-                }
-
-                lastValue = currentValue;
-                lastX = x;
-            }
-
-            // Complete to end of canvas
-            if (lastX < width) {
-                logicAnalyzerCtx2.lineTo(width, lastY);
-            }
-
-            logicAnalyzerCtx2.stroke();
-
-            // Draw channel label
-            logicAnalyzerCtx2.fillStyle = color;
-            logicAnalyzerCtx2.font = '12px monospace';
-            const labelY = baselineY - 60;
-            logicAnalyzerCtx2.fillText(label, 10, labelY);
-        }
-
-        function clearLogicAnalyzer2() {
-            logicAnalyzerData2 = {
-                ch1_data: [], ch2_data: [], timestamps: []
-            };
-            drawLogicAnalyzer2();
-        }
-
-        function updateLogicAnalyzerConfig2() {
-            if (!logicAnalyzerActive2) return;
-
-            const config = {
-                analyzer_type: 'external',
-                channel_mode: logicChannelMode2,
-                timebase: logicTimebase2,
-                amplitude_scale: logicAmplitudeScale2
-            };
-
-            fetch('/logic/config', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(config)
-            }).catch(error => {
-                console.error('Error updating external logic analyzer config:', error);
-            });
-        }
 
 
 
         function initializeSerialPlot() {
             serialPlotCanvas = document.getElementById('serialPlotCanvas');
+            if (!serialPlotCanvas) {
+                console.error('Serial plot canvas not found');
+                return;
+            }
             serialPlotCtx = serialPlotCanvas.getContext('2d');
 
-            // Set canvas size to match container
-            setTimeout(() => {
-                const container = document.querySelector('.logic-analyzer-container');
-                if (container) {
-                    // Set canvas width to 90% of container width for better fit
-                    serialPlotCanvas.width = container.clientWidth * 0.9;
-                    serialPlotCanvas.height = 250;
-                    drawSerialPlot(); // Redraw with correct size
-                }
-            }, 100);
+            // Set initial canvas size
+            resizeSerialPlotCanvas();
 
             // Set up controls
             document.getElementById('serialPlotBaudRate').addEventListener('change', function() {
@@ -2976,6 +2666,34 @@
 
             // Draw initial grid
             drawSerialPlot();
+        }
+
+        function resizeSerialPlotCanvas() {
+            if (!serialPlotCanvas) return;
+
+            const container = document.querySelector('.logic-analyzer-container');
+            if (container) {
+                const containerWidth = container.clientWidth;
+                const containerHeight = container.clientHeight;
+
+                // Get actual controls height dynamically
+                const controls = container.querySelector('.oscilloscope-controls');
+                const nav = container.querySelector('.carousel-nav');
+                const controlsHeight = controls ? controls.offsetHeight : 120;
+                const navHeight = nav ? nav.offsetHeight : 60;
+
+                // Calculate available height for canvas
+                const availableHeight = Math.max(200, containerHeight - controlsHeight - navHeight - 40); // 40px for padding
+
+                // Set canvas dimensions
+                serialPlotCanvas.width = containerWidth;
+                serialPlotCanvas.height = availableHeight;
+
+                // Redraw if context exists
+                if (serialPlotCtx) {
+                    drawSerialPlot();
+                }
+            }
         }
 
         function toggleSerialPlot() {
@@ -3177,16 +2895,10 @@
 
         function updateCarousel() {
             const slidesContainer = document.getElementById('logicAnalyzerSlides');
-            const slides = document.querySelectorAll('.carousel-slide');
             const dots = document.querySelectorAll('.carousel-dot');
 
             // Slide to the current slide using transform
-            slidesContainer.style.transform = `translateX(-${currentSlideIndex * 100}%)`;
-
-            // Update active class for pointer events and other styling
-            slides.forEach((slide, index) => {
-                slide.classList.toggle('active', index === currentSlideIndex);
-            });
+            slidesContainer.style.transform = `translateX(-${currentSlideIndex * 50}%)`;
 
             // Update dots
             dots.forEach((dot, index) => {
@@ -3194,32 +2906,21 @@
             });
 
             // Ensure all canvases are initialized
-            if (!logicAnalyzerCanvas2 || !logicAnalyzerCtx2) {
-                initializeLogicAnalyzer2();
-            }
             if (!serialPlotCanvas || !serialPlotCtx) {
                 initializeSerialPlot();
             }
 
+            // Update control panel responsiveness after slide change
+            setTimeout(() => {
+                updateControlPanelResponsiveness();
+            }, 50); // Small delay to allow DOM to settle
+
             // Draw only the current slide's canvas immediately
             if (currentSlideIndex === 0 && logicAnalyzerCanvas && logicAnalyzerCtx) {
                 drawLogicAnalyzer();
-            } else if (currentSlideIndex === 1 && logicAnalyzerCanvas2 && logicAnalyzerCtx2) {
-                drawLogicAnalyzer2();
-            } else if (currentSlideIndex === 2 && serialPlotCanvas && serialPlotCtx) {
+            } else if (currentSlideIndex === 1 && serialPlotCanvas && serialPlotCtx) {
                 drawSerialPlot();
             }
-
-            // Also draw after transition completes to ensure proper rendering
-            setTimeout(() => {
-                if (currentSlideIndex === 0 && logicAnalyzerCanvas && logicAnalyzerCtx) {
-                    drawLogicAnalyzer();
-                } else if (currentSlideIndex === 1 && logicAnalyzerCanvas2 && logicAnalyzerCtx2) {
-                    drawLogicAnalyzer2();
-                } else if (currentSlideIndex === 2 && serialPlotCanvas && serialPlotCtx) {
-                    drawSerialPlot();
-                }
-            }, 400);
         }
     </script>
 </body>
