@@ -42,7 +42,7 @@ class LogicAnalyzerManager:
         self.PIN_CH2_NEG = 23  # Channel 2 negative
 
         # Simple acquisition parameters
-        self.sampling_rate = 100000  # 100 kHz sampling
+        self.sampling_rate = 10000  # 10 kHz sampling (safer default)
         self.buffer_size = 10000     # Buffer for 0.1 seconds of data
         self.stream_interval = 0.05  # Send data every 50ms
 
@@ -60,6 +60,7 @@ class LogicAnalyzerManager:
         self.acquisition_thread = None
         self.stream_thread = None
         self.stop_event = threading.Event()
+        self.buffer_lock = threading.Lock()
 
     def initialize_gpio(self):
         """Initialize GPIO pins for logic analyzer"""
@@ -173,7 +174,13 @@ class LogicAnalyzerManager:
     def set_timebase(self, timebase):
         """Set timebase (seconds per division)"""
         try:
-            self.timebase = float(timebase)
+            # Ensure timebase is within reasonable bounds
+            timebase_val = float(timebase)
+            if timebase_val < 0.0001:  # Minimum 0.1ms
+                timebase_val = 0.0001
+            elif timebase_val > 10.0:  # Maximum 10s
+                timebase_val = 10.0
+            self.timebase = timebase_val
             return True
         except Exception as e:
             return False
@@ -189,7 +196,7 @@ class LogicAnalyzerManager:
 
 
     def _acquisition_loop(self):
-        """Simple acquisition loop - just read GPIO pins and compute differences"""
+        """Acquisition loop with atomic GPIO reads and simple timing"""
         sample_interval = 1.0 / self.sampling_rate
         last_sample_time = time.time()
         sample_count = 0
@@ -198,30 +205,35 @@ class LogicAnalyzerManager:
             try:
                 current_time = time.time()
 
-                # Maintain sampling rate
+                # Simple timing check - take one sample when due
                 if current_time - last_sample_time >= sample_interval:
-                    # Read GPIO pins (0 or 1)
-                    ch1_pos = lgpio.gpio_read(self.chip, self.PIN_CH1_POS)
-                    ch1_neg = lgpio.gpio_read(self.chip, self.PIN_CH1_NEG)
-                    ch2_pos = lgpio.gpio_read(self.chip, self.PIN_CH2_POS)
-                    ch2_neg = lgpio.gpio_read(self.chip, self.PIN_CH2_NEG)
+                    # Read all GPIO pins as atomically as possible
+                    # Group reads to minimize timing gaps between pins
+                    pin_reads = []
+                    pins = [self.PIN_CH1_POS, self.PIN_CH1_NEG, self.PIN_CH2_POS, self.PIN_CH2_NEG]
+
+                    # Read all pins in rapid succession
+                    for pin in pins:
+                        pin_reads.append(lgpio.gpio_read(self.chip, pin))
+
+                    ch1_pos, ch1_neg, ch2_pos, ch2_neg = pin_reads
 
                     # Compute differences: pos - neg gives +1, 0, or -1
                     ch1_diff = ch1_pos - ch1_neg
                     ch2_diff = ch2_pos - ch2_neg
 
-                    # Store the differential values
-                    self.ch1_diff_buffer.append(ch1_diff)
-                    self.ch2_diff_buffer.append(ch2_diff)
-                    self.timestamp_buffer.append(current_time)
+                    # Store the differential values with thread safety
+                    with self.buffer_lock:
+                        self.ch1_diff_buffer.append(ch1_diff)
+                        self.ch2_diff_buffer.append(ch2_diff)
+                        self.timestamp_buffer.append(current_time)
 
                     sample_count += 1
+                    last_sample_time = current_time
 
                     # Print status occasionally
                     if sample_count % 5000 == 0:
                         print(f"Sample {sample_count}: CH1={ch1_diff}, CH2={ch2_diff}")
-
-                    last_sample_time = current_time
 
                 # Small sleep to prevent CPU hogging
                 time.sleep(0.0001)
@@ -346,31 +358,32 @@ class LogicAnalyzerManager:
                 current_time = time.time()
                 stream_count += 1
 
-                # Get buffer sizes
-                buffer_size = len(self.ch1_diff_buffer)
-                if buffer_size == 0:
-                    continue
+                # Get buffer sizes with thread safety
+                with self.buffer_lock:
+                    buffer_size = len(self.ch1_diff_buffer)
+                    if buffer_size == 0:
+                        continue
 
-                # Calculate samples to send based on timebase
-                # timebase is seconds per division, we want ~10 divisions worth of data
-                # But limit to prevent browser overload (max 5000 samples)
-                target_time_window = self.timebase * 10  # 10 divisions
-                target_samples = int(target_time_window * self.sampling_rate)
-                max_samples = min(target_samples, buffer_size, 5000)  # Cap at 5000 samples
-                max_samples = max(max_samples, 1000)  # Minimum 1000 samples for stability
-                start_idx = max(0, buffer_size - max_samples)
+                    # Calculate samples to send based on timebase
+                    # timebase is seconds per division, we want ~10 divisions worth of data
+                    # But limit to prevent browser overload (max 5000 samples)
+                    target_time_window = self.timebase * 10  # 10 divisions
+                    target_samples = int(target_time_window * self.sampling_rate)
+                    max_samples = min(target_samples, buffer_size, 5000)  # Cap at 5000 samples
+                    max_samples = max(max_samples, 1000)  # Minimum 1000 samples for stability
+                    start_idx = max(0, buffer_size - max_samples)
 
-                # Prepare data for frontend
-                data_to_send = {
-                    'timestamp': current_time,
-                    'sampling_rate': self.sampling_rate,
-                    'timebase': self.timebase,
-                    'scale': self.amplitude_scale,
-                    'channel_mode': self.channel_mode,
-                    'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
-                    'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
-                    'timestamps': list(self.timestamp_buffer)[start_idx:]
-                }
+                    # Prepare data for frontend - copy data while holding lock
+                    data_to_send = {
+                        'timestamp': current_time,
+                        'sampling_rate': self.sampling_rate,
+                        'timebase': self.timebase,
+                        'scale': self.amplitude_scale,
+                        'channel_mode': self.channel_mode,
+                        'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
+                        'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
+                        'timestamps': list(self.timestamp_buffer)[start_idx:]
+                    }
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)

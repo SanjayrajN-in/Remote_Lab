@@ -1188,7 +1188,7 @@
                                         </div>
                                         <div class="control-group">
                                             <span class="control-label">Timebase:</span>
-                                            <input type="range" id="logicTimebaseInput" class="control-input" min="0.0005" max="1.0" step="0.0005" value="0.001">
+                                            <input type="range" id="logicTimebaseInput" class="control-input" min="0" max="100" step="1" value="50">
                                         </div>
                                         <div class="control-group">
                                             <span class="control-label">Amplitude:</span>
@@ -2002,7 +2002,9 @@
             const timebaseInput = document.getElementById('logicTimebaseInput');
             if (timebaseInput) {
                 timebaseInput.addEventListener('input', function() {
-                    logicTimebase = parseFloat(this.value);
+                    // Convert slider value (0-100) to logarithmic timebase (0.0001 to 0.01)
+                    const sliderValue = parseFloat(this.value);
+                    logicTimebase = 0.0001 * Math.pow(100, sliderValue / 100);
                     updateLogicAnalyzerConfig();
                 });
             }
@@ -2054,10 +2056,12 @@
             if (logicAnalyzerActive) {
                 // Stop logic analyzer
                 logicAnalyzerActive = false;
-                logicAnimationPaused = false;
+                logicAnimationPaused = false; // Reset pause state
                 btn.textContent = 'Start Logic Analyzer';
                 btn.classList.remove('active');
                 pauseBtn.style.display = 'none';
+                pauseBtn.textContent = 'Pause'; // Reset button text
+                pauseBtn.classList.remove('active'); // Reset button style
                 if (logicAnimationId) {
                     cancelAnimationFrame(logicAnimationId);
                     logicAnimationId = null;
@@ -2067,11 +2071,12 @@
             } else {
                 // Start logic analyzer
                 logicAnalyzerActive = true;
-                logicAnimationPaused = false;
+                logicAnimationPaused = false; // Ensure not paused when starting
                 btn.textContent = 'Stop Logic Analyzer';
                 btn.classList.add('active');
                 pauseBtn.textContent = 'Pause';
                 pauseBtn.style.display = 'inline-block';
+                pauseBtn.classList.remove('active'); // Ensure pause button shows as not active
                 logicAnalyzerData = {
                     ch1_data: [], ch2_data: [], timestamps: []
                 };
@@ -2101,8 +2106,17 @@
             pauseBtn.classList.toggle('active', logicAnimationPaused);
 
             if (!logicAnimationPaused) {
-                // Resume: draw immediately to show current data
+                // Resume: restart animation loop and draw immediately
+                if (logicAnalyzerActive) {
+                    startLogicAnalyzerAnimation();
+                }
                 drawLogicAnalyzer();
+            } else {
+                // Pause: stop animation loop
+                if (logicAnimationId) {
+                    cancelAnimationFrame(logicAnimationId);
+                    logicAnimationId = null;
+                }
             }
         }
 
@@ -2283,9 +2297,13 @@
             const height = logicAnalyzerCanvas.height;
             const timeSpan = timestamps[timestamps.length - 1] - timestamps[0];
 
-            // Scale the actual data time span to fill the canvas width
-            // This ensures the waveform always fills the available space
-            const pixelsPerSecond = timeSpan > 0 ? width / timeSpan : width / 0.01; // Fallback for safety
+            // Use timebase setting to determine display width
+            // timebase represents seconds per division, we want to show ~10 divisions
+            const displayTimeSpan = logicTimebase * 10; // 10 divisions worth of time
+
+            // Scale to fit the display time span, but don't exceed available data
+            const effectiveTimeSpan = Math.min(displayTimeSpan, timeSpan);
+            const pixelsPerSecond = effectiveTimeSpan > 0 ? width / effectiveTimeSpan : width / 0.01;
 
             // 3 horizontal lines: -1, 0, +1
             const plus1Y = baselineY - 40 * logicAmplitudeScale;  // +1 line
