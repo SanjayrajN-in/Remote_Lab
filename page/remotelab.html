@@ -494,8 +494,8 @@
                 <h2 class="text-xl font-semibold mb-4 text-blue-300">
                     Live Video Stream
                 </h2>
-                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer">
-                    <div id="videoPlaceholder" class="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer" style="padding-bottom: 56.25%; position: relative;">
+                    <div id="videoPlaceholder" class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                         <div class="text-center">
                             <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <svg
@@ -513,13 +513,18 @@
                     <img id="videoElement" class="video-element" alt="Live Video Stream" style="display: none;">
 
                     <!-- Video Controls Overlay -->
-                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4">
-                        <button class="bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200">
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button id="videoPlayBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200" title="Start Video Stream">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
                         </button>
-                        <button class="bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200">
+                        <button id="videoStopBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none" title="Stop Video Stream">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                        </button>
+                        <button id="audioMuteBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200" title="Start Audio Stream">
                             <svg
                                 class="w-6 h-6"
                                 fill="none"
@@ -532,6 +537,11 @@
                                     stroke-width="2"
                                     d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343a9 9 0 000 12.728m2.829-9.9a5 5 0 000 7.072"
                                 />
+                            </svg>
+                        </button>
+                        <button id="audioStopBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none" title="Stop Audio Stream">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5.5 9v6h2l3 3V6l-3 3H5.5z" />
                             </svg>
                         </button>
                     </div>
@@ -788,20 +798,40 @@
                         if (data.status === 'started') {
                             console.log('Video streaming started');
                             showVideoElement();
+                            // Update button states
+                            toggleVideoButtons(true);
                         } else if (data.status === 'stopped') {
                             console.log('Video streaming stopped');
                             hideVideoElement();
+                            // Update button states
+                            toggleVideoButtons(false);
                         } else if (data.status === 'error') {
                             alert('Video streaming error: ' + (data.message || 'Unknown error'));
                             hideVideoElement();
+                            // Reset button states on error
+                            toggleVideoButtons(false);
                         }
                     } else if (data.type === 'audio') {
                         if (data.status === 'started') {
                             console.log('Audio streaming started');
+                            // Update button states
+                            toggleAudioButtons(true);
                         } else if (data.status === 'stopped') {
                             console.log('Audio streaming stopped');
+                            // Update button states
+                            toggleAudioButtons(false);
                         } else if (data.status === 'error') {
                             alert('Audio streaming error: ' + (data.message || 'Unknown error'));
+                            // Reset button states on error
+                            toggleAudioButtons(false);
+                        }
+                    } else if (data.type === 'all') {
+                        if (data.status === 'stopped') {
+                            console.log('All streaming stopped');
+                            hideVideoElement();
+                            // Reset all button states
+                            toggleVideoButtons(false);
+                            toggleAudioButtons(false);
                         }
                     }
                 });
@@ -1115,25 +1145,114 @@
             }
         }
 
+        // Helper functions for button toggling
+        function toggleVideoButtons(showStop) {
+            const videoPlayBtn = document.getElementById('videoPlayBtn');
+            const videoStopBtn = document.getElementById('videoStopBtn');
+
+            if (showStop) {
+                // Show stop button, hide play button
+                if (videoPlayBtn) {
+                    videoPlayBtn.style.opacity = '0';
+                    videoPlayBtn.style.pointerEvents = 'none';
+                }
+                if (videoStopBtn) {
+                    videoStopBtn.style.opacity = '1';
+                    videoStopBtn.style.pointerEvents = 'auto';
+                }
+            } else {
+                // Show play button, hide stop button
+                if (videoPlayBtn) {
+                    videoPlayBtn.style.opacity = '1';
+                    videoPlayBtn.style.pointerEvents = 'auto';
+                }
+                if (videoStopBtn) {
+                    videoStopBtn.style.opacity = '0';
+                    videoStopBtn.style.pointerEvents = 'none';
+                }
+            }
+        }
+
+        function toggleAudioButtons(showStop) {
+            const audioMuteBtn = document.getElementById('audioMuteBtn');
+            const audioStopBtn = document.getElementById('audioStopBtn');
+
+            if (showStop) {
+                // Show stop button, hide start button
+                if (audioMuteBtn) {
+                    audioMuteBtn.style.opacity = '0';
+                    audioMuteBtn.style.pointerEvents = 'none';
+                }
+                if (audioStopBtn) {
+                    audioStopBtn.style.opacity = '1';
+                    audioStopBtn.style.pointerEvents = 'auto';
+                }
+            } else {
+                // Show start button, hide stop button
+                if (audioMuteBtn) {
+                    audioMuteBtn.style.opacity = '1';
+                    audioMuteBtn.style.pointerEvents = 'auto';
+                }
+                if (audioStopBtn) {
+                    audioStopBtn.style.opacity = '0';
+                    audioStopBtn.style.pointerEvents = 'none';
+                }
+            }
+        }
+
         // Video and audio streaming controls
         function setupStreamingControls() {
-            const videoPlayBtn = document.querySelector('.bg-white\\/20.hover\\:bg-white\\/30.rounded-full.p-3');
-            const videoMuteBtn = videoPlayBtn ? videoPlayBtn.nextElementSibling : null;
+            const videoPlayBtn = document.getElementById('videoPlayBtn');
+            const videoStopBtn = document.getElementById('videoStopBtn');
+            const audioMuteBtn = document.getElementById('audioMuteBtn');
+            const audioStopBtn = document.getElementById('audioStopBtn');
 
+            // Video play button
             if (videoPlayBtn) {
                 videoPlayBtn.addEventListener('click', function() {
                     if (socket && socket.connected) {
                         socket.emit('start_streaming', {video: true, audio: false});
+                        // Show stop button, hide play button
+                        toggleVideoButtons(true);
                     } else {
                         alert('Not connected to server');
                     }
                 });
             }
 
-            if (videoMuteBtn) {
-                videoMuteBtn.addEventListener('click', function() {
+            // Video stop button
+            if (videoStopBtn) {
+                videoStopBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        socket.emit('stop_streaming');
+                        // Show play button, hide stop button
+                        toggleVideoButtons(false);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Audio start button
+            if (audioMuteBtn) {
+                audioMuteBtn.addEventListener('click', function() {
                     if (socket && socket.connected) {
                         socket.emit('start_streaming', {video: false, audio: true});
+                        // Show stop button, hide start button
+                        toggleAudioButtons(true);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Audio stop button
+            if (audioStopBtn) {
+                audioStopBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        socket.emit('stop_streaming');
+                        // Show start button, hide stop button
+                        toggleAudioButtons(false);
                     } else {
                         alert('Not connected to server');
                     }
