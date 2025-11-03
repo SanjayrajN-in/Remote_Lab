@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, Response
+from flask import Flask, render_template, request, jsonify, redirect, url_for, Response, send_from_directory
 from flask_socketio import SocketIO, emit
 import os
 import subprocess
@@ -497,6 +497,9 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
     terminal_output = []
     terminal_output.append(f"Starting upload of {file_path} to {device_type.upper()} ({chip_type}) at {port}")
 
+    # Emit initial progress
+    socketio.emit('flash_progress', {'progress': 0, 'status': 'Starting upload...', 'in_progress': True})
+
     try:
         if device_type == 'arduino':
             cmd = [
@@ -524,6 +527,7 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
             ]
 
         terminal_output.append(f"Executing: {' '.join(cmd)}")
+        socketio.emit('flash_progress', {'progress': 10, 'status': 'Initializing...', 'in_progress': True})
 
         process = subprocess.Popen(
             cmd,
@@ -534,23 +538,62 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
             universal_newlines=True
         )
 
-        # Read output line by line
+        # Read output line by line and update progress
+        progress = 20
         for line in iter(process.stdout.readline, ''):
             terminal_output.append(line.strip())
             print(line.strip())  # Also print to console
 
+            line_lower = line.lower()
+
+            # Update progress based on output - improved detection
+            if 'device initialized' in line_lower or 'device signature' in line_lower:
+                progress = 25
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Device connected...', 'in_progress': True})
+            elif 'erasing chip' in line_lower:
+                progress = 35
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Erasing chip...', 'in_progress': True})
+            elif 'reading input file' in line_lower:
+                progress = 45
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Reading firmware...', 'in_progress': True})
+            elif 'writing' in line_lower and ('flash' in line_lower or 'bytes' in line_lower):
+                progress = 60
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Writing firmware...', 'in_progress': True})
+            elif 'writing |' in line_lower and '100%' in line_lower:
+                progress = 75
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Writing complete...', 'in_progress': True})
+            elif 'verifying' in line_lower:
+                progress = 85
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Verifying firmware...', 'in_progress': True})
+            elif 'reading |' in line_lower and '100%' in line_lower:
+                progress = 95
+                socketio.emit('flash_progress', {'progress': progress, 'status': 'Verification complete...', 'in_progress': True})
+
         process.wait()
+
+        # Check return code and provide detailed error messages
+        if process.returncode != 0:
+            error_lines = [line for line in terminal_output if 'error' in line.lower() or 'failed' in line.lower() or 'not found' in line.lower()]
+            if error_lines:
+                error_msg = error_lines[-1]  # Get the last error
+            else:
+                error_msg = f"Flashing failed with return code {process.returncode}"
+            socketio.emit('flash_progress', {'progress': 0, 'status': f'Error: {error_msg}', 'in_progress': False})
+            return False
 
         if process.returncode == 0:
             terminal_output.append("✅ Upload successful!")
+            socketio.emit('flash_progress', {'progress': 100, 'status': 'Upload successful!', 'in_progress': False})
             return True
         else:
             terminal_output.append("❌ Upload failed!")
+            socketio.emit('flash_progress', {'progress': 0, 'status': 'Upload failed!', 'in_progress': False})
             return False
 
     except Exception as e:
         error_msg = f"❌ Error: {str(e)}"
         terminal_output.append(error_msg)
+        socketio.emit('flash_progress', {'progress': 0, 'status': f'Error: {str(e)}', 'in_progress': False})
         return False
     finally:
         upload_in_progress = False
@@ -699,7 +742,11 @@ def handle_send_serial_data(data):
 def index():
     devices = find_devices()
     firmware = find_firmware()
-    return render_template('index.html', devices=devices, firmware=firmware)
+    return send_from_directory('page', 'remotelab.html')
+
+@app.route('/static/<path:filename>')
+def static_files(filename):
+    return send_from_directory('static', filename)
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -740,7 +787,21 @@ def flash_firmware():
 
     firmware_file = 'firmware'
     if not os.path.exists(firmware_file):
-        return jsonify({'error': 'No firmware file found'}), 400
+        return jsonify({'error': 'No firmware file uploaded. Please upload a firmware file first.'}), 400
+
+    # Check if file has content
+    try:
+        file_size = os.path.getsize(firmware_file)
+        if file_size == 0:
+            return jsonify({'error': 'Firmware file is empty. Please upload a valid firmware file.'}), 400
+    except OSError:
+        return jsonify({'error': 'Cannot access firmware file. Please re-upload.'}), 400
+
+    # Validate device and chip type compatibility
+    if device_type == 'arduino' and chip_type.startswith('t'):
+        return jsonify({'error': f'Cannot upload {chip_type} firmware to Arduino device. Please select the correct device type or use a compatible programmer.'}), 400
+    elif device_type == 'esp32' and not chip_type.startswith('esp'):
+        return jsonify({'error': f'Cannot upload {chip_type} firmware to ESP32 device. Please select the correct device type.'}), 400
 
     # Start upload in background thread
     thread = threading.Thread(target=upload_firmware, args=(device_type, port, firmware_file, chip_type))

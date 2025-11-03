@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Lab Interface</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #1E40AF;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        .slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #1E40AF;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); }
+            to { transform: translateX(0); }
+        }
+
+        .animate-slideIn {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+        }
+
+        .animate-glow {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        /* Custom scrollbar - Cross-browser support */
+        /* WebKit browsers (Chrome, Safari, Edge) */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.6) 0%, rgba(139, 92, 246, 0.6) 100%);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb:active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(139, 92, 246, 0.9) 100%);
+        }
+
+        ::-webkit-scrollbar-corner {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.6) rgba(255, 255, 255, 0.05);
+        }
+
+        /* Additional scrollbar styling for specific elements */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 3px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 3px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.6);
+        }
+
+        /* Device Selection - Matching current theme */
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .device-item {
+            padding: 15px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .device-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .device-item:hover::before {
+            left: 100%;
+        }
+
+        .device-item:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.2);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .device-item.selected {
+            border-color: rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .device-item strong {
+            display: block;
+            color: #e0e0e0;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .device-item small {
+            color: #b0b0b0;
+            font-size: 0.9em;
+        }
+
+        .refresh-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            color: #ffffff;
+            margin-left: auto;
+            position: relative;
+        }
+
+        .refresh-icon:hover {
+            background: rgba(59, 130, 246, 0.1);
+            color: #3b82f6;
+        }
+
+        .refresh-icon:active {
+            transform: scale(0.9);
+        }
+
+        .refresh-icon.spinning svg {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Video Element Styling */
+        .video-element {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Remote Lab Interface
+            </h1>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-gray-300">Connected</span>
+                </div>
+                <button class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all duration-200">
+                    Emergency Stop
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex h-[calc(100vh-80px)]">
+        <!-- Left Panel - Device controls and hub controls -->
+        <div class="w-1/3 p-6 space-y-6 overflow-y-auto">
+            <!-- Device Control -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Device Control
+                </h2>
+
+                <!-- Device Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">
+                        Select Device
+                        <button class="refresh-icon ml-2" onclick="refreshDevices()" title="Refresh Devices">
+                            <svg viewBox="0 0 24 24" width="16" height="16">
+                                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+                            </svg>
+                        </button>
+                    </label>
+                    <div id="devicesList" class="device-list">
+                        <div class="device-item">Loading devices...</div>
+                    </div>
+                </div>
+
+                <!-- File Upload -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">
+                        Upload Firmware
+                    </label>
+                    <div class="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-blue-400/50 transition-colors cursor-pointer">
+                        <input
+                            type="file"
+                            accept=".hex,.bin"
+                            class="hidden"
+                            id="firmware-upload"
+                        />
+                        <label for="firmware-upload" class="cursor-pointer">
+                            <div class="text-gray-400 mb-2">
+                                <svg
+                                    class="w-8 h-8 mx-auto mb-2"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path
+                                        stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                    />
+                                </svg>
+                            </div>
+                            <p>Drop HEX/BIN file here or click to browse</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Supports .hex and .bin files
+                            </p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Flash Button & Progress -->
+                <div class="space-y-3">
+                    <button class="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02]">
+                        Flash Device
+                    </button>
+
+                    <!-- Progress Bar -->
+                    <div class="bg-black/30 rounded-full h-3 overflow-hidden">
+                        <div
+                            class="bg-gradient-to-r from-green-400 to-blue-400 h-full w-0 transition-all duration-500 ease-out"
+                            style="width: 0%"
+                        ></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Status: Ready</span>
+                        <span>0% Complete</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Serial Monitor -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Serial Monitor
+                </h2>
+
+                <!-- Serial Controls -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <select class="bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors">
+                        <option>9600</option>
+                        <option>115200</option>
+                        <option>57600</option>
+                        <option>38400</option>
+                    </select>
+                    <button id="serialToggleBtn" class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200">
+                        Connect
+                    </button>
+                </div>
+
+                <!-- Terminal -->
+                <div id="serialTerminal" class="bg-black/50 rounded-lg p-4 h-48 overflow-y-auto font-mono text-sm mb-4 border border-white/10">
+                    <div class="text-gray-500 italic">[Not connected - Select a device and click Connect]</div>
+                </div>
+
+                <!-- Command Input -->
+                <div class="flex space-x-2">
+                    <input
+                        type="text"
+                        placeholder="Enter command..."
+                        class="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors"
+                    />
+                    <button class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg px-4 py-2 transition-all duration-200">
+                        Send
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hub Controls -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-blue-300">Hub Controls</h2>
+                    <button class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        + Add Control
+                    </button>
+                </div>
+
+                <!-- Existing Controls -->
+                <div class="space-y-4">
+                    <!-- Slider Control -->
+                    <div class="bg-black/20 rounded-lg p-4 border border-white/5">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">LED Brightness</span>
+                                        <button class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200 ml-2">
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-400 mb-2">
+                                        Device: <span class="text-blue-400">Arduino Uno</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center mb-2">
+                                <span class="text-sm text-gray-300">Value</span>
+                                <span class="text-blue-400 font-mono">75</span>
+                            </div>
+                            <input
+                                type="range"
+                                min="0"
+                                max="100"
+                                value="75"
+                                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                            />
+                            <div class="flex justify-between text-xs text-gray-400 mt-1">
+                                <span>0</span>
+                                <span>100</span>
+                            </div>
+
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Associated Device
+                                </label>
+                                <select class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                    <option>Arduino Uno</option>
+                                    <option>ESP32 DevKit</option>
+                                    <option>STM32 Nucleo</option>
+                                    <option>Raspberry Pi Pico</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Toggle Control -->
+                    <div class="bg-black/20 rounded-lg p-4 border border-white/5">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">Power Switch</span>
+                                        <button class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200 ml-2">
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-400 mb-2">
+                                        Device: <span class="text-blue-400">ESP32 DevKit</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-300">Status</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" class="sr-only peer" checked />
+                                    <div class="w-11 h-6 bg-blue-500 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all"></div>
+                                </label>
+                            </div>
+
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Associated Device
+                                </label>
+                                <select class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                    <option>Arduino Uno</option>
+                                    <option selected>ESP32 DevKit</option>
+                                    <option>STM32 Nucleo</option>
+                                    <option>Raspberry Pi Pico</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Display Control -->
+                    <div class="bg-black/20 rounded-lg p-4 border border-white/5">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">Temperature Sensor</span>
+                                        <button class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200 ml-2">
+                                            ✕
+                                        </button>
+                                    </div>
+                                    <div class="text-xs text-gray-400 mb-2">
+                                        Device: <span class="text-blue-400">STM32 Nucleo</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-300">Reading</span>
+                                <span class="text-green-400 font-mono text-lg">24.5°C</span>
+                            </div>
+
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Associated Device
+                                </label>
+                                <select class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                    <option>Arduino Uno</option>
+                                    <option>ESP32 DevKit</option>
+                                    <option selected>STM32 Nucleo</option>
+                                    <option>Raspberry Pi Pico</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Video stream and oscilloscope -->
+        <div class="w-2/3 p-6 space-y-6 overflow-y-auto">
+            <!-- Video Stream -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Live Video Stream
+                </h2>
+                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer">
+                    <div id="videoPlaceholder" class="aspect-video bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                        <div class="text-center">
+                            <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg
+                                    class="w-8 h-8 text-blue-400"
+                                    fill="currentColor"
+                                    viewBox="0 0 24 24"
+                                >
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            </div>
+                            <p class="text-gray-400">Video Stream Offline</p>
+                            <p class="text-xs text-gray-500 mt-1">Hover to start streaming</p>
+                        </div>
+                    </div>
+                    <img id="videoElement" class="video-element" alt="Live Video Stream" style="display: none;">
+
+                    <!-- Video Controls Overlay -->
+                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center space-x-4">
+                        <button class="bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                        </button>
+                        <button class="bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200">
+                            <svg
+                                class="w-6 h-6"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                            >
+                                <path
+                                    stroke-linecap="round"
+                                    stroke-linejoin="round"
+                                    stroke-width="2"
+                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343a9 9 0 000 12.728m2.829-9.9a5 5 0 000 7.072"
+                                />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oscilloscope -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 flex-1">
+                <!-- Oscilloscope Header -->
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-blue-300">Oscilloscope</h2>
+                    <div class="flex space-x-2">
+                        <button class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                            Start
+                        </button>
+                        <button class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                            Stop
+                        </button>
+                        <button class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Oscilloscope Controls -->
+                <div class="grid grid-cols-3 gap-3 mb-4">
+                    <!-- Timebase Control -->
+                    <div>
+                        <label class="block text-xs font-medium mb-1">
+                            Timebase: 10ms/div
+                        </label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value="50"
+                            class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider mb-2"
+                        />
+
+                        <div class="grid grid-cols-2 gap-1">
+                            <select class="w-full bg-black/30 border border-white/20 rounded px-1 py-0.5 text-xs focus:border-blue-400 focus:outline-none transition-colors">
+                                <option>DEV001</option>
+                                <option>DEV002</option>
+                                <option>DEV003</option>
+                            </select>
+                            <select class="w-full bg-black/30 border border-white/20 rounded px-1 py-0.5 text-xs focus:border-blue-400 focus:outline-none transition-colors">
+                                <option>GPIO_CLK</option>
+                                <option>GPIO_DATA</option>
+                                <option>ADC_CH1</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Amplitude Control -->
+                    <div>
+                        <label class="block text-xs font-medium mb-1">
+                            Amplitude: 2V/div
+                        </label>
+                        <input
+                            type="range"
+                            min="0"
+                            max="100"
+                            value="25"
+                            class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider mb-2"
+                        />
+
+                        <div class="grid grid-cols-2 gap-1">
+                            <select class="w-full bg-black/30 border border-white/20 rounded px-1 py-0.5 text-xs focus:border-blue-400 focus:outline-none transition-colors">
+                                <option>DEV001</option>
+                                <option>DEV002</option>
+                                <option>DEV003</option>
+                            </select>
+                            <select class="w-full bg-black/30 border border-white/20 rounded px-1 py-0.5 text-xs focus:border-blue-400 focus:outline-none transition-colors">
+                                <option>GPIO_CLK</option>
+                                <option>GPIO_DATA</option>
+                                <option>ADC_CH1</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- GPIO Channel Selection -->
+                    <div>
+                        <label class="block text-xs font-medium mb-1">GPIO Channel</label>
+                        <select class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                            <option>Channel 1</option>
+                            <option>Channel 2</option>
+                            <option>Both</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Slide Carousel -->
+                <div class="flex items-center justify-between mb-3">
+                    <div class="flex space-x-2">
+                        <button class="w-8 h-8 rounded text-sm transition-all duration-200 bg-blue-500/30 border border-blue-500/50 text-blue-300">
+                            1
+                        </button>
+                        <button class="w-8 h-8 rounded text-sm transition-all duration-200 bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400">
+                            2
+                        </button>
+                        <button class="w-8 h-8 rounded text-sm transition-all duration-200 bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400">
+                            3
+                        </button>
+                    </div>
+                    <button class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded px-3 py-1 text-sm transition-all duration-200">
+                        + Add Slide
+                    </button>
+                </div>
+
+                <!-- Current Slide Info -->
+                <div class="mb-4 text-sm text-gray-300">
+                    <span class="font-medium text-blue-300">GPIO Analysis</span>
+                    <span class="ml-2 text-xs bg-gray-700 px-2 py-1 rounded">GPIO</span>
+                </div>
+
+                <!-- Oscilloscope Display -->
+                <div class="bg-black rounded-lg p-4 h-80 border border-white/10 relative overflow-hidden">
+                    <!-- Grid Background -->
+                    <div class="absolute inset-0 opacity-30">
+                        <svg class="w-full h-full">
+                            <defs>
+                                <pattern
+                                    id="smallGrid"
+                                    width="20"
+                                    height="20"
+                                    patternUnits="userSpaceOnUse"
+                                >
+                                    <path
+                                        d="M 20 0 L 0 0 0 20"
+                                        fill="none"
+                                        stroke="#374151"
+                                        stroke-width="0.5"
+                                    />
+                                </pattern>
+                                <pattern
+                                    id="grid"
+                                    width="100"
+                                    height="100"
+                                    patternUnits="userSpaceOnUse"
+                                >
+                                    <rect width="100" height="100" fill="url(#smallGrid)" />
+                                    <path
+                                        d="M 100 0 L 0 0 0 100"
+                                        fill="none"
+                                        stroke="#4B5563"
+                                        stroke-width="1"
+                                    />
+                                </pattern>
+                            </defs>
+                            <rect width="100%" height="100%" fill="url(#grid)" />
+                        </svg>
+                    </div>
+
+                    <!-- Center Lines -->
+                    <div class="absolute inset-0">
+                        <div class="absolute top-1/2 left-0 right-0 h-px bg-yellow-400/50"></div>
+                        <div class="absolute left-1/2 top-0 bottom-0 w-px bg-yellow-400/50"></div>
+                    </div>
+
+                    <!-- Waveforms -->
+                    <svg class="absolute inset-0 w-full h-full">
+                        <!-- GPIO Digital Signals -->
+                        <path
+                            d="M 0 100 L 50 100 L 50 50 L 100 50 L 100 100 L 150 100 L 150 50 L 200 50 L 200 100 L 250 100 L 250 50 L 300 50 L 300 100 L 350 100 L 350 50 L 400 50 L 400 100 L 450 100 L 450 50 L 500 50"
+                            fill="none"
+                            stroke="#10B981"
+                            stroke-width="3"
+                            class="animate-pulse"
+                        />
+                        <path
+                            d="M 0 200 L 30 200 L 30 150 L 80 150 L 80 200 L 120 200 L 120 150 L 170 150 L 170 200 L 220 200 L 220 150 L 270 150 L 270 200 L 320 200 L 320 150 L 370 150 L 370 200 L 420 200 L 420 150 L 500 150"
+                            fill="none"
+                            stroke="#3B82F6"
+                            stroke-width="3"
+                            class="animate-pulse"
+                            style="animation-delay: 0.5s"
+                        />
+                    </svg>
+
+                    <!-- Channel Labels -->
+                    <div class="absolute top-2 left-2 space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-xs text-green-400">GPIO_0 (Digital)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                            <span class="text-xs text-blue-400">GPIO_1 (Digital)</span>
+                        </div>
+                    </div>
+
+                    <!-- Measurements -->
+                    <div class="absolute top-2 right-2 text-xs space-y-1">
+                        <div class="text-green-400">Frequency: 1.2kHz</div>
+                        <div class="text-blue-400">Duty Cycle: 50%</div>
+                        <div class="text-yellow-400">High: 3.3V</div>
+                    </div>
+
+                    <!-- Trigger Indicator -->
+                    <div class="absolute bottom-2 left-2">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
+                            <span class="text-xs text-red-400">Triggered</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let selectedDevice = null;
+        let currentFirmware = null;
+
+        // Initialize SocketIO connection
+        function initSocket() {
+            try {
+                socket = io();
+                console.log('Socket.IO initialized');
+
+                socket.on('connect', function() {
+                    console.log('Connected to server');
+                });
+
+                socket.on('disconnect', function() {
+                    console.log('Disconnected from server');
+                });
+
+                // Handle flash progress updates
+                socket.on('flash_progress', function(data) {
+                    updateFlashProgress(data.progress, data.status, data.in_progress);
+                });
+
+                // Handle video frame updates
+                socket.on('video_frame', function(data) {
+                    updateVideoFrame(data.frame);
+                });
+
+                // Handle serial data
+                socket.on('serial_data', function(data) {
+                    addToSerialTerminal(data.data);
+                });
+
+                socket.on('serial_status', function(data) {
+                    updateSerialStatus(data);
+                });
+
+                // Handle streaming status updates
+                socket.on('streaming_status', function(data) {
+                    console.log('Streaming status:', data);
+                    if (data.type === 'video') {
+                        if (data.status === 'started') {
+                            console.log('Video streaming started');
+                            showVideoElement();
+                        } else if (data.status === 'stopped') {
+                            console.log('Video streaming stopped');
+                            hideVideoElement();
+                        } else if (data.status === 'error') {
+                            alert('Video streaming error: ' + (data.message || 'Unknown error'));
+                            hideVideoElement();
+                        }
+                    } else if (data.type === 'audio') {
+                        if (data.status === 'started') {
+                            console.log('Audio streaming started');
+                        } else if (data.status === 'stopped') {
+                            console.log('Audio streaming stopped');
+                        } else if (data.status === 'error') {
+                            alert('Audio streaming error: ' + (data.message || 'Unknown error'));
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Failed to initialize Socket.IO:', error);
+                alert('Failed to connect to server. Please refresh the page.');
+            }
+        }
+
+        // Flash progress bar update
+        function updateFlashProgress(progress, status, inProgress) {
+            const progressBar = document.querySelector('.bg-gradient-to-r.from-green-400.to-blue-400');
+            const statusText = document.querySelector('.flex.justify-between.text-xs.text-gray-400 span:first-child');
+            const percentText = document.querySelector('.flex.justify-between.text-xs.text-gray-400 span:last-child');
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+            }
+
+            if (statusText) {
+                statusText.textContent = 'Status: ' + status;
+            }
+
+            if (percentText) {
+                percentText.textContent = progress + '% Complete';
+            }
+
+            if (flashButton) {
+                if (inProgress) {
+                    flashButton.disabled = true;
+                    flashButton.textContent = 'Flashing...';
+                } else {
+                    flashButton.disabled = false;
+                    flashButton.textContent = 'Flash Device';
+                }
+            }
+        }
+
+        // Video frame update
+        function updateVideoFrame(frameData) {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+
+            if (videoElement && frameData) {
+                videoElement.src = 'data:image/jpeg;base64,' + frameData;
+                videoElement.style.display = 'block';
+                if (videoPlaceholder) {
+                    videoPlaceholder.style.display = 'none';
+                }
+            }
+        }
+
+        // Show video element and hide placeholder
+        function showVideoElement() {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+            if (videoElement) {
+                videoElement.style.display = 'block';
+            }
+            if (videoPlaceholder) {
+                videoPlaceholder.style.display = 'none';
+            }
+        }
+
+        // Hide video element and show placeholder
+        function hideVideoElement() {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+            if (videoElement) {
+                videoElement.style.display = 'none';
+            }
+            if (videoPlaceholder) {
+                videoPlaceholder.style.display = 'flex';
+            }
+        }
+
+        // Serial terminal functions
+        function addToSerialTerminal(data) {
+            const terminal = document.getElementById('serialTerminal');
+            if (terminal) {
+                const line = document.createElement('div');
+                line.className = 'text-green-400';
+                line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + data;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+
+        function updateSerialStatus(data) {
+            console.log('Serial status:', data);
+            const toggleBtn = document.getElementById('serialToggleBtn');
+
+            if (data.status === 'started') {
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Disconnect';
+                    toggleBtn.className = 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+                // Clear sample data when connecting
+                const terminal = document.getElementById('serialTerminal');
+                if (terminal) {
+                    terminal.innerHTML = '<div class="text-green-400">[System] Serial monitor connected</div>';
+                }
+            } else if (data.status === 'stopped') {
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Connect';
+                    toggleBtn.className = 'bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+                // Add disconnection message
+                const terminal = document.getElementById('serialTerminal');
+                if (terminal) {
+                    const line = document.createElement('div');
+                    line.className = 'text-yellow-400';
+                    line.textContent = '[' + new Date().toLocaleTimeString() + '] [System] Serial monitor disconnected';
+                    terminal.appendChild(line);
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            } else if (data.status === 'error') {
+                alert('Serial error: ' + data.message);
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Connect';
+                    toggleBtn.className = 'bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+            }
+        }
+
+        // Device management functions
+        function refreshDevices() {
+            // Add spinning animation
+            const refreshIcon = document.querySelector('.refresh-icon');
+            if (refreshIcon) {
+                refreshIcon.classList.add('spinning');
+            }
+
+            fetch('/devices')
+                .then(response => response.json())
+                .then(data => {
+                    const devicesList = document.getElementById('devicesList');
+                    if (data.devices.length === 0) {
+                        devicesList.innerHTML = '<div class="device-item">No devices detected</div>';
+                        updateFlashButtonState();
+                    } else {
+                        devicesList.innerHTML = '';
+                        data.devices.forEach(device => {
+                            const deviceItem = document.createElement('div');
+                            deviceItem.className = 'device-item';
+                            deviceItem.onclick = () => selectDevice(deviceItem, device);
+                            deviceItem.innerHTML = `<strong>${device[2]}</strong><br><small>${device[1]}</small>`;
+                            devicesList.appendChild(deviceItem);
+                        });
+                        updateFlashButtonState();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching devices:', error);
+                    document.getElementById('devicesList').innerHTML = '<div class="device-item">Error loading devices</div>';
+                    updateFlashButtonState();
+                })
+                .finally(() => {
+                    // Remove spinning animation after a short delay
+                    setTimeout(() => {
+                        if (refreshIcon) {
+                            refreshIcon.classList.remove('spinning');
+                        }
+                    }, 500);
+                });
+        }
+
+        function selectDevice(item, device) {
+            // Remove previous selection
+            document.querySelectorAll('.device-item').forEach(i => i.classList.remove('selected'));
+            // Add selection to clicked item
+            item.classList.add('selected');
+            item.setAttribute('data-device', JSON.stringify(device));
+            selectedDevice = device;
+            updateFlashButtonState();
+        }
+
+        function updateFlashButtonState() {
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+            if (flashButton) {
+                flashButton.disabled = !selectedDevice || !currentFirmware;
+            }
+        }
+
+        // Flash button click handler
+        function setupFlashButton() {
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+            if (flashButton) {
+                flashButton.addEventListener('click', function() {
+                    if (!selectedDevice || !currentFirmware) {
+                        alert('Please select a device and upload firmware first');
+                        return;
+                    }
+
+                    // Send flash request using selected device data
+                    fetch('/flash', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                            'device_type': selectedDevice[0],
+                            'port': selectedDevice[1],
+                            'chip_type': selectedDevice[3]
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Flash started:', data);
+                    })
+                    .catch(error => {
+                        console.error('Flash error:', error);
+                        alert('Failed to start flashing process');
+                    });
+                });
+            }
+        }
+
+        // File upload handler
+        function setupFileUpload() {
+            const fileInput = document.getElementById('firmware-upload');
+            if (fileInput) {
+                fileInput.addEventListener('change', function(event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            alert('Upload error: ' + data.error);
+                        } else {
+                            currentFirmware = data.filename;
+                            alert('File uploaded successfully!');
+                            updateFlashButtonState();
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Upload error:', error);
+                        alert('Upload failed!');
+                    });
+                });
+            }
+        }
+
+        // Serial monitor functions
+        function setupSerialControls() {
+            const toggleBtn = document.getElementById('serialToggleBtn');
+            const sendBtn = document.querySelector('.bg-blue-500\\/20');
+            const commandInput = document.querySelector('input[placeholder="Enter command..."]');
+            const baudSelect = document.querySelector('select');
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function() {
+                    const isConnected = toggleBtn.textContent === 'Disconnect';
+
+                    if (isConnected) {
+                        // Disconnect
+                        socket.emit('stop_serial_monitor');
+                    } else {
+                        // Connect
+                        const selectedDevice = document.querySelector('.device-item.selected');
+                        if (!selectedDevice) {
+                            alert('Please select a device first');
+                            return;
+                        }
+
+                        const deviceData = selectedDevice.getAttribute('data-device');
+                        if (!deviceData) {
+                            alert('Device data not available');
+                            return;
+                        }
+
+                        const device = JSON.parse(deviceData);
+                        const baudrate = baudSelect ? parseInt(baudSelect.value) : 9600;
+
+                        socket.emit('start_serial_monitor', {
+                            port: device[1], // port
+                            baudrate: baudrate
+                        });
+                    }
+                });
+            }
+
+            if (sendBtn && commandInput) {
+                sendBtn.addEventListener('click', function() {
+                    const command = commandInput.value.trim();
+                    if (command) {
+                        socket.emit('send_serial_data', {data: command});
+                        commandInput.value = '';
+                    }
+                });
+
+                commandInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        const command = commandInput.value.trim();
+                        if (command) {
+                            socket.emit('send_serial_data', {data: command});
+                            commandInput.value = '';
+                        }
+                    }
+                });
+            }
+        }
+
+        // Video and audio streaming controls
+        function setupStreamingControls() {
+            const videoPlayBtn = document.querySelector('.bg-white\\/20.hover\\:bg-white\\/30.rounded-full.p-3');
+            const videoMuteBtn = videoPlayBtn ? videoPlayBtn.nextElementSibling : null;
+
+            if (videoPlayBtn) {
+                videoPlayBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        socket.emit('start_streaming', {video: true, audio: false});
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            if (videoMuteBtn) {
+                videoMuteBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        socket.emit('start_streaming', {video: false, audio: true});
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            initSocket();
+            setupFlashButton();
+            setupFileUpload();
+            setupSerialControls(); // Initialize serial controls
+            setupStreamingControls(); // Initialize video/audio controls
+            refreshDevices(); // Load devices on page load
+        });
+    </script>
+</body>
+</html>
