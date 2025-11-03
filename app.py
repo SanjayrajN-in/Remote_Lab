@@ -51,6 +51,305 @@ ESP_BAUD = "460800"
 terminal_output = []
 upload_in_progress = False
 
+# Global variables for hub controls
+hub_controls = []
+control_values = {}
+serial_value_patterns = {}
+
+def detect_control_type(value_name, context=""):
+    """Detect the appropriate control type based on value name and context"""
+    name_lower = value_name.lower()
+
+    # Binary/On-Off controls (detect first as they have specific value options)
+    if any(keyword in name_lower for keyword in ['enable', 'disable', 'on', 'off', 'state', 'status', 'dir', 'direction']):
+        return {
+            'type': 'toggle',
+            'command_template': f'{value_name}={{value}}',
+            'value_options': ['0', '1'],  # Default on/off values
+            'display_options': ['OFF', 'ON']
+        }
+
+    # Direction controls
+    elif any(keyword in name_lower for keyword in ['dir', 'direction', 'forward', 'reverse', 'cw', 'ccw']):
+        return {
+            'type': 'toggle',
+            'command_template': f'{value_name}={{value}}',
+            'value_options': ['0', '1'],
+            'display_options': ['REVERSE', 'FORWARD']
+        }
+
+    # Servo/Angle controls
+    elif any(keyword in name_lower for keyword in ['servo', 'angle', 'degree', 'deg', 'pos', 'position']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 180,
+            'step': 1,
+            'unit': '°',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Temperature controls
+    elif any(keyword in name_lower for keyword in ['temp', 'temperature']):
+        return {
+            'type': 'slider',
+            'min': -50,
+            'max': 150,
+            'step': 0.1,
+            'unit': '°C',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Speed/RPM controls
+    elif any(keyword in name_lower for keyword in ['speed', 'rpm', 'velocity']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 1000,
+            'step': 10,
+            'unit': 'RPM',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Voltage controls
+    elif any(keyword in name_lower for keyword in ['volt', 'voltage', 'v']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 5,
+            'step': 0.1,
+            'unit': 'V',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Current controls
+    elif any(keyword in name_lower for keyword in ['current', 'amp', 'amps', 'i']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 5,
+            'step': 0.1,
+            'unit': 'A',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Pressure controls
+    elif any(keyword in name_lower for keyword in ['press', 'pressure', 'psi', 'bar']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 100,
+            'step': 1,
+            'unit': 'PSI',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Distance/Position controls
+    elif any(keyword in name_lower for keyword in ['dist', 'distance', 'cm', 'mm', 'inch']):
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 100,
+            'step': 1,
+            'unit': 'cm',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+    # Default numeric control
+    else:
+        return {
+            'type': 'slider',
+            'min': 0,
+            'max': 100,
+            'step': 1,
+            'unit': '',
+            'command_template': f'{value_name}={{value}}'
+        }
+
+def analyze_serial_data_for_controls(data):
+    """Analyze serial data to detect potential control values and commands"""
+    global serial_value_patterns
+
+    # Patterns to detect value assignments and readings
+    patterns = [
+        # Variable assignments: var = value
+        r'([a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*([+-]?\d*\.?\d+)',
+        # Labeled values: label: value
+        r'([a-zA-Z_][a-zA-Z0-9_]*)\s*:\s*([+-]?\d*\.?\d+)',
+        # Function calls with values: func(value)
+        r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*([+-]?\d*\.?\d+)\s*\)',
+        # JSON-like: "key": value
+        r'"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:\s*([+-]?\d*\.?\d+)',
+    ]
+
+    # Patterns to detect command options from help text
+    command_patterns = [
+        # "Enter 'on' to turn LED on, 'off' to turn LED off"
+        r"'([a-zA-Z0-9_]+)'\s*(?:\w+\s+)*([a-zA-Z0-9_]+)",
+        # "Use 'on' or 'off'"
+        r"'([a-zA-Z0-9_]+)'\s*or\s*'([a-zA-Z0-9_]+)'",
+        # "Commands: on, off"
+        r"(?:commands?|options?)\s*:\s*([a-zA-Z0-9_,\s]+)",
+        # Single quoted commands
+        r"'([a-zA-Z0-9_]+)'",
+    ]
+
+    detected_values = {}
+    detected_commands = set()
+
+    # Detect numeric values
+    for pattern in patterns:
+        import re
+        matches = re.findall(pattern, data, re.IGNORECASE)
+        for match in matches:
+            var_name, value = match
+            var_name = var_name.strip()
+
+            # Skip common non-control variables
+            skip_keywords = ['time', 'timestamp', 'millis', 'micros', 'delay', 'pin', 'port']
+            if any(keyword in var_name.lower() for keyword in skip_keywords):
+                continue
+
+            try:
+                numeric_value = float(value)
+                if var_name not in detected_values:
+                    detected_values[var_name] = {
+                        'name': var_name,
+                        'value': numeric_value,
+                        'count': 1,
+                        'last_seen': time.time()
+                    }
+                else:
+                    detected_values[var_name]['count'] += 1
+                    detected_values[var_name]['last_seen'] = time.time()
+                    # Update value if it's different (take the latest)
+                    if detected_values[var_name]['value'] != numeric_value:
+                        detected_values[var_name]['value'] = numeric_value
+            except ValueError:
+                continue
+
+    # Detect command options from help text
+    for pattern in command_patterns:
+        matches = re.findall(pattern, data, re.IGNORECASE)
+        for match in matches:
+            if isinstance(match, tuple):
+                # Multiple commands in one match
+                for cmd in match:
+                    cmd = cmd.strip()
+                    if cmd and len(cmd) > 0:
+                        detected_commands.add(cmd.lower())
+            else:
+                # Single command
+                cmd = match.strip()
+                if cmd and len(cmd) > 0:
+                    detected_commands.add(cmd.lower())
+
+    # Update global patterns
+    for var_name, info in detected_values.items():
+        if var_name not in serial_value_patterns:
+            serial_value_patterns[var_name] = info
+        else:
+            serial_value_patterns[var_name].update(info)
+
+    # Store detected commands globally
+    if not hasattr(analyze_serial_data_for_controls, 'detected_commands'):
+        analyze_serial_data_for_controls.detected_commands = set()
+
+    analyze_serial_data_for_controls.detected_commands.update(detected_commands)
+
+    # Clean up old patterns (older than 30 seconds)
+    current_time = time.time()
+    to_remove = []
+    for var_name, info in serial_value_patterns.items():
+        if current_time - info.get('last_seen', 0) > 30:
+            to_remove.append(var_name)
+
+    for var_name in to_remove:
+        del serial_value_patterns[var_name]
+
+    return list(serial_value_patterns.keys())
+
+def create_hub_control(value_name, device_info=None, control_type=None):
+    """Create a hub control for a detected value"""
+    global hub_controls
+
+    # Check if control already exists
+    for control in hub_controls:
+        if control['name'] == value_name:
+            return control
+
+    # Use provided type or detect control type
+    if control_type:
+        # Get base config for the specified type
+        control_config = detect_control_type(value_name)
+        # Override the type
+        control_config['type'] = control_type
+    else:
+        # Detect control type automatically
+        control_config = detect_control_type(value_name)
+
+    # Create control object
+    control = {
+        'id': f"control_{len(hub_controls)}",
+        'name': value_name,
+        'type': control_config['type'],
+        'config': control_config,
+        'device': device_info or {'type': 'auto', 'port': 'auto'},
+        'created': time.time(),
+        'enabled': True
+    }
+
+    hub_controls.append(control)
+    return control
+
+def update_control_value(control_id, value):
+    """Update the value of a control"""
+    global control_values
+    control_values[control_id] = {
+        'value': value,
+        'timestamp': time.time()
+    }
+
+def get_control_value(control_id):
+    """Get the current value of a control"""
+    return control_values.get(control_id, {}).get('value')
+
+def send_control_command(control_id, value):
+    """Send a control command via serial"""
+    global serial_connection, hub_controls
+
+    # Find the control
+    control = None
+    for c in hub_controls:
+        if c['id'] == control_id:
+            control = c
+            break
+
+    if not control or not serial_connection or not serial_connection.is_open:
+        return False
+
+    try:
+        # For toggle controls, send the value directly (no template)
+        if control['type'] == 'toggle':
+            command = str(value)
+        else:
+            # For sliders and other controls, use command template
+            command_template = control['config']['command_template']
+            command = command_template.replace('{value}', str(value))
+
+        print(f"Sending command for {control['type']} control: '{command}'")  # Debug log
+
+        # Send command
+        serial_connection.write((command + '\n').encode('utf-8'))
+
+        # Update control value
+        update_control_value(control_id, value)
+
+        return True
+    except Exception as e:
+        print(f"Error sending control command: {e}")
+        return False
+
 def initialize_video_capture():
     """Initialize video capture from webcam - try multiple camera indices"""
     global video_capture
@@ -362,6 +661,18 @@ def serial_monitor_thread():
                             # Only emit non-empty lines
                             if complete_line:
                                 socketio.emit('serial_data', {'data': complete_line})
+
+                                # Analyze serial data for potential hub controls
+                                detected_values = analyze_serial_data_for_controls(complete_line)
+                                if detected_values:
+                                    # Emit detected controls to frontend
+                                    socketio.emit('hub_controls_detected', {'values': detected_values})
+
+                                # Emit detected commands to frontend for dropdown population
+                                if hasattr(analyze_serial_data_for_controls, 'detected_commands'):
+                                    detected_commands = list(analyze_serial_data_for_controls.detected_commands)
+                                    if detected_commands:
+                                        socketio.emit('hub_commands_detected', {'commands': detected_commands})
 
                         consecutive_errors = 0
 
@@ -738,6 +1049,94 @@ def handle_send_serial_data(data):
     except Exception as e:
         emit('serial_status', {'status': 'error', 'message': str(e)})
 
+# Hub Controls SocketIO handlers
+@socketio.on('create_hub_control')
+def handle_create_hub_control(data):
+    try:
+        value_name = data.get('name')
+        if not value_name:
+            emit('hub_control_error', {'message': 'Control name is required'})
+            return
+
+        control_type = data.get('type', 'slider')  # Default to slider if not specified
+        device_info = data.get('device', {'type': 'auto', 'port': 'auto'})
+
+        control = create_hub_control(value_name, device_info, control_type)
+
+        emit('hub_control_created', {'control': control})
+    except Exception as e:
+        emit('hub_control_error', {'message': str(e)})
+
+@socketio.on('update_hub_control')
+def handle_update_hub_control(data):
+    global hub_controls
+    try:
+        control_id = data.get('id')
+        if not control_id:
+            emit('hub_control_error', {'message': 'Control ID is required'})
+            return
+
+        # Find and update the control
+        for control in hub_controls:
+            if control['id'] == control_id:
+                if 'config' in data:
+                    control['config'].update(data['config'])
+                if 'device' in data:
+                    control['device'].update(data['device'])
+                if 'enabled' in data:
+                    control['enabled'] = data['enabled']
+
+                print(f"Updated control {control_id}: {control['config']}")  # Debug log
+                emit('hub_control_updated', {'control': control})
+                return
+
+        emit('hub_control_error', {'message': 'Control not found'})
+    except Exception as e:
+        emit('hub_control_error', {'message': str(e)})
+
+@socketio.on('delete_hub_control')
+def handle_delete_hub_control(data):
+    global hub_controls, control_values
+    try:
+        control_id = data.get('id')
+        if not control_id:
+            emit('hub_control_error', {'message': 'Control ID is required'})
+            return
+
+        # Find and remove the control
+        for i, control in enumerate(hub_controls):
+            if control['id'] == control_id:
+                deleted_control = hub_controls.pop(i)
+                # Clean up control values
+                if control_id in control_values:
+                    del control_values[control_id]
+
+                emit('hub_control_deleted', {'control': deleted_control})
+                return
+
+        emit('hub_control_error', {'message': 'Control not found'})
+    except Exception as e:
+        emit('hub_control_error', {'message': str(e)})
+
+@socketio.on('send_control_command')
+def handle_send_control_command(data):
+    try:
+        control_id = data.get('id')
+        value = data.get('value')
+
+        if not control_id:
+            emit('hub_control_error', {'message': 'Control ID is required'})
+            return
+
+        success = send_control_command(control_id, value)
+
+        if success:
+            emit('control_command_sent', {'id': control_id, 'value': value})
+        else:
+            emit('hub_control_error', {'message': 'Failed to send command'})
+    except Exception as e:
+        emit('hub_control_error', {'message': str(e)})
+
 @app.route('/')
 def index():
     devices = find_devices()
@@ -901,6 +1300,122 @@ def configure_logic_analyzer():
             logic_analyzer_manager.set_amplitude_scale(data['amplitude_scale'])
 
         return jsonify({'status': 'configured'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Hub Controls Routes
+@app.route('/hub/controls')
+def get_hub_controls():
+    """Get all hub controls"""
+    global hub_controls, control_values
+    controls_data = []
+    for control in hub_controls:
+        control_data = control.copy()
+        control_data['current_value'] = get_control_value(control['id'])
+        controls_data.append(control_data)
+
+    return jsonify({'controls': controls_data})
+
+@app.route('/hub/controls', methods=['POST'])
+def create_hub_control_route():
+    """Create a new hub control"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No control data provided'}), 400
+
+        value_name = data.get('name')
+        if not value_name:
+            return jsonify({'error': 'Control name is required'}), 400
+
+        device_info = data.get('device', {'type': 'auto', 'port': 'auto'})
+
+        control = create_hub_control(value_name, device_info)
+        return jsonify({'control': control}), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/hub/controls/<control_id>', methods=['PUT'])
+def update_hub_control(control_id):
+    """Update a hub control configuration"""
+    global hub_controls
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No update data provided'}), 400
+
+        # Find and update the control
+        for control in hub_controls:
+            if control['id'] == control_id:
+                # Update allowed fields
+                if 'config' in data:
+                    control['config'].update(data['config'])
+                if 'device' in data:
+                    control['device'].update(data['device'])
+                if 'enabled' in data:
+                    control['enabled'] = data['enabled']
+
+                return jsonify({'control': control}), 200
+
+        return jsonify({'error': 'Control not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/hub/controls/<control_id>', methods=['DELETE'])
+def delete_hub_control(control_id):
+    """Delete a hub control"""
+    global hub_controls, control_values
+    try:
+        # Find and remove the control
+        for i, control in enumerate(hub_controls):
+            if control['id'] == control_id:
+                deleted_control = hub_controls.pop(i)
+                # Clean up control values
+                if control_id in control_values:
+                    del control_values[control_id]
+                return jsonify({'message': 'Control deleted', 'control': deleted_control}), 200
+
+        return jsonify({'error': 'Control not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/hub/controls/<control_id>/send', methods=['POST'])
+def send_control_command_endpoint(control_id):
+    """Send a control command"""
+    try:
+        data = request.get_json()
+        if not data or 'value' not in data:
+            return jsonify({'error': 'Value is required'}), 400
+
+        value = data['value']
+        success = send_control_command(control_id, value)
+
+        if success:
+            return jsonify({'message': 'Command sent successfully'}), 200
+        else:
+            return jsonify({'error': 'Failed to send command'}), 500
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/hub/detect', methods=['POST'])
+def detect_hub_controls():
+    """Manually trigger control detection from current serial data"""
+    global serial_value_patterns, hub_controls
+
+    try:
+        detected_values = list(serial_value_patterns.keys())
+
+        # Auto-create controls for detected values
+        new_controls = []
+        for value_name in detected_values:
+            control = create_hub_control(value_name)
+            new_controls.append(control)
+
+        return jsonify({
+            'detected_values': detected_values,
+            'new_controls': new_controls,
+            'total_controls': len(hub_controls)
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
