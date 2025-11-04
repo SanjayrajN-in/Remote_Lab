@@ -1631,12 +1631,8 @@
                     </div>
                 `;
             } else if (control.type === 'toggle') {
-                // For toggles: 2 value dropdowns populated with detected commands
+                // For toggles: 2 value inputs with dropdowns and confirm buttons
                 const detectedCommands = Array.from(window.detectedCommands || []);
-                const commandOptions = detectedCommands.length > 0 ?
-                    detectedCommands.map(cmd => `<option value="${cmd}">${cmd}</option>`).join('') :
-                    '<option value="">No commands detected</option>';
-
                 const valueOptions = control.config.value_options || ['0', '1'];
 
                 controlElement = `
@@ -1669,10 +1665,17 @@
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">Value 1</label>
                                     <div class="flex space-x-1">
-                                        <select id="val1-${control.id}" class="flex-1 min-w-0 max-w-24 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
+                                        <select id="val1-select-${control.id}" class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
                                             <option value="${valueOptions[0]}" selected>${valueOptions[0]}</option>
-                                            ${commandOptions}
+                                            ${detectedCommands.map(cmd => `<option value="${cmd}">${cmd}</option>`).join('')}
                                         </select>
+                                        <input
+                                            type="text"
+                                            id="val1-custom-${control.id}"
+                                            placeholder="Custom..."
+                                            class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                            onkeypress="handleCustomValueKeypress(event, '${control.id}', 0)"
+                                        >
                                         <button onclick="confirmToggleValue('${control.id}', 0)" class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs transition-all duration-200 flex-shrink-0">
                                             ✓
                                         </button>
@@ -1681,10 +1684,17 @@
                                 <div>
                                     <label class="block text-xs text-gray-500 mb-1">Value 2</label>
                                     <div class="flex space-x-1">
-                                        <select id="val2-${control.id}" class="flex-1 min-w-0 max-w-24 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
+                                        <select id="val2-select-${control.id}" class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
                                             <option value="${valueOptions[1]}" selected>${valueOptions[1]}</option>
-                                            ${commandOptions}
+                                            ${detectedCommands.map(cmd => `<option value="${cmd}">${cmd}</option>`).join('')}
                                         </select>
+                                        <input
+                                            type="text"
+                                            id="val2-custom-${control.id}"
+                                            placeholder="Custom..."
+                                            class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                            onkeypress="handleCustomValueKeypress(event, '${control.id}', 1)"
+                                        >
                                         <button onclick="confirmToggleValue('${control.id}', 1)" class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs transition-all duration-200 flex-shrink-0">
                                             ✓
                                         </button>
@@ -1845,15 +1855,61 @@
             socket.emit('update_hub_control', updateData);
         }
 
-        function confirmToggleValue(controlId, index) {
-            const selectElement = document.getElementById(`val${index + 1}-${controlId}`);
-            if (!selectElement) return;
+        function handleCustomValueKeypress(event, controlId, index) {
+            if (event.key === 'Enter') {
+                const inputElement = document.getElementById(`val${index + 1}-custom-${controlId}`);
+                if (!inputElement) return;
 
-            const selectedValue = selectElement.value;
+                const customValue = inputElement.value.trim();
+                if (!customValue) return;
+
+                updateToggleValue(controlId, index, customValue);
+                inputElement.value = ''; // Clear the input after use
+            }
+        }
+
+        function confirmToggleValue(controlId, index) {
+            const selectElement = document.getElementById(`val${index + 1}-select-${controlId}`);
+            const customInput = document.getElementById(`val${index + 1}-custom-${controlId}`);
+
+            let selectedValue = '';
+
+            // Check if there's a value in the custom input first
+            if (customInput && customInput.value.trim()) {
+                selectedValue = customInput.value.trim();
+
+                // Add the custom value to the dropdown if it's not already there
+                if (selectElement) {
+                    let optionExists = false;
+                    for (let i = 0; i < selectElement.options.length; i++) {
+                        if (selectElement.options[i].value === selectedValue) {
+                            optionExists = true;
+                            break;
+                        }
+                    }
+
+                    if (!optionExists) {
+                        const newOption = document.createElement('option');
+                        newOption.value = selectedValue;
+                        newOption.textContent = selectedValue;
+                        selectElement.appendChild(newOption);
+                    }
+
+                    // Select the value in the dropdown
+                    selectElement.value = selectedValue;
+                }
+
+                customInput.value = ''; // Clear after use
+            } else if (selectElement && selectElement.value) {
+                selectedValue = selectElement.value;
+            }
+
             if (!selectedValue) return;
 
             updateToggleValue(controlId, index, selectedValue);
         }
+
+
 
         function updateToggleValue(controlId, index, value) {
             if (!socket || !socket.connected) return;

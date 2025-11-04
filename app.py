@@ -66,7 +66,8 @@ def detect_control_type(value_name, context=""):
             'type': 'toggle',
             'command_template': f'{value_name}={{value}}',
             'value_options': ['0', '1'],  # Default on/off values
-            'display_options': ['OFF', 'ON']
+            'display_options': ['OFF', 'ON'],
+            'allow_custom_values': True  # Allow users to enter custom values
         }
 
     # Direction controls
