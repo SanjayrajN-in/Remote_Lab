@@ -273,13 +273,30 @@ def create_hub_control(value_name, device_info=None, control_type=None):
     """Create a hub control for a detected value"""
     global hub_controls
 
+    # Validate input
+    if not value_name or not isinstance(value_name, str):
+        print(f"Invalid control name: {value_name}")
+        return None
+
+    value_name = value_name.strip()
+    if not value_name:
+        print("Empty control name provided")
+        return None
+
     # Check if control already exists
     for control in hub_controls:
         if control['name'] == value_name:
+            print(f"Control '{value_name}' already exists")
             return control
 
     # Use provided type or detect control type
     if control_type:
+        # Validate control type
+        valid_types = ['slider', 'toggle', 'reader']
+        if control_type not in valid_types:
+            print(f"Invalid control type: {control_type}, defaulting to slider")
+            control_type = 'slider'
+
         # Get base config for the specified type
         control_config = detect_control_type(value_name)
         # Override the type
@@ -288,9 +305,12 @@ def create_hub_control(value_name, device_info=None, control_type=None):
         # Detect control type automatically
         control_config = detect_control_type(value_name)
 
+    # Generate unique ID
+    control_id = f"control_{int(time.time() * 1000)}_{len(hub_controls)}"
+
     # Create control object
     control = {
-        'id': f"control_{len(hub_controls)}",
+        'id': control_id,
         'name': value_name,
         'type': control_config['type'],
         'config': control_config,
@@ -300,6 +320,7 @@ def create_hub_control(value_name, device_info=None, control_type=None):
     }
 
     hub_controls.append(control)
+    print(f"Created new control: {control['name']} (ID: {control['id']})")
     return control
 
 def update_control_value(control_id, value):
@@ -1002,7 +1023,7 @@ def handle_stop_streaming():
 
 @socketio.on('start_serial_monitor')
 def handle_start_serial_monitor(data):
-    global serial_monitoring_active, serial_connection
+    global serial_monitoring_active, serial_connection, hub_controls, serial_value_patterns
     try:
         port = data.get('port')
         baudrate = data.get('baudrate', 9600)
@@ -1012,6 +1033,17 @@ def handle_start_serial_monitor(data):
             return
 
         if initialize_serial_connection(port, baudrate):
+            # Clear existing hub controls and patterns when starting serial monitor
+            # This ensures fresh detection of controls from the new firmware
+            hub_controls.clear()
+            serial_value_patterns.clear()
+            # Clear detected commands
+            if hasattr(analyze_serial_data_for_controls, 'detected_commands'):
+                analyze_serial_data_for_controls.detected_commands.clear()
+
+            # Notify frontend to clear existing controls
+            emit('hub_controls_cleared')
+
             serial_monitoring_active = True
             serial_thread = threading.Thread(target=serial_monitor_thread)
             serial_thread.daemon = True
@@ -1063,9 +1095,14 @@ def handle_create_hub_control(data):
 
         control = create_hub_control(value_name, device_info, control_type)
 
+        if control is None:
+            emit('hub_control_error', {'message': 'Failed to create control - invalid parameters'})
+            return
+
         emit('hub_control_created', {'control': control})
     except Exception as e:
-        emit('hub_control_error', {'message': str(e)})
+        print(f"Error creating hub control: {e}")
+        emit('hub_control_error', {'message': f'Failed to create control: {str(e)}'})
 
 @socketio.on('update_hub_control')
 def handle_update_hub_control(data):
@@ -1103,6 +1140,13 @@ def handle_delete_hub_control(data):
             emit('hub_control_error', {'message': 'Control ID is required'})
             return
 
+        # Validate control_id format
+        if not isinstance(control_id, str) or not control_id.strip():
+            emit('hub_control_error', {'message': 'Invalid control ID format'})
+            return
+
+        control_id = control_id.strip()
+
         # Find and remove the control
         for i, control in enumerate(hub_controls):
             if control['id'] == control_id:
@@ -1111,12 +1155,16 @@ def handle_delete_hub_control(data):
                 if control_id in control_values:
                     del control_values[control_id]
 
+                print(f"Deleted control: {deleted_control['name']} (ID: {control_id})")
                 emit('hub_control_deleted', {'control': deleted_control})
                 return
 
-        emit('hub_control_error', {'message': 'Control not found'})
+        # Control not found - this is not necessarily an error since controls might be deleted from other sessions
+        print(f"Control {control_id} not found for deletion (might already be deleted)")
+        emit('hub_control_deleted', {'control': {'id': control_id}})  # Still emit success for UI consistency
     except Exception as e:
-        emit('hub_control_error', {'message': str(e)})
+        print(f"Error deleting hub control {data.get('id', 'unknown')}: {e}")
+        emit('hub_control_error', {'message': f'Failed to delete control: {str(e)}'})
 
 @socketio.on('send_control_command')
 def handle_send_control_command(data):
