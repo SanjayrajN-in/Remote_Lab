@@ -434,13 +434,13 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold text-blue-300">Oscilloscope</h2>
                     <div class="flex space-x-2">
-                        <button class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeStartBtn" class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Start
                         </button>
-                        <button class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeStopBtn" class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Stop
                         </button>
-                        <button class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeClearBtn" class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Clear
                         </button>
                     </div>
@@ -451,13 +451,13 @@
                     <!-- Timebase Control -->
                     <div id="timebaseControl" class="p-2">
                         <label class="block text-xs font-medium mb-0.5">
-                            Time-base: 10ms/div
+                            Time-base: 10uS/div
                         </label>
                         <input
                             type="range"
                             min="0"
                             max="100"
-                            value="50"
+                            value="0"
                             class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
                         />
                     </div>
@@ -507,77 +507,51 @@
 
                 <!-- Oscilloscope Display -->
                 <div class="bg-black rounded-lg p-4 h-80 border border-white/10 relative overflow-hidden">
-                    <!-- Grid Background -->
-                    <div class="absolute inset-0 opacity-30">
-                        <svg class="w-full h-full">
-                            <defs>
-                                <pattern
-                                    id="smallGrid"
-                                    width="20"
-                                    height="20"
-                                    patternUnits="userSpaceOnUse"
-                                >
-                                    <path
-                                        d="M 20 0 L 0 0 0 20"
-                                        fill="none"
-                                        stroke="#374151"
-                                        stroke-width="0.5"
-                                    />
-                                </pattern>
-                                <pattern
-                                    id="grid"
-                                    width="100"
-                                    height="100"
-                                    patternUnits="userSpaceOnUse"
-                                >
-                                    <rect width="100" height="100" fill="url(#smallGrid)" />
-                                    <path
-                                        d="M 100 0 L 0 0 0 100"
-                                        fill="none"
-                                        stroke="#4B5563"
-                                        stroke-width="1"
-                                    />
-                                </pattern>
-                            </defs>
-                            <rect width="100%" height="100%" fill="url(#grid)" />
-                        </svg>
-                    </div>
+                    <!-- Combined Grid and Waveforms -->
+                    <svg class="absolute inset-0 w-full h-full" id="waveformSvg" style="width: 100%; height: 100%;">
+                        <!-- Grid Background -->
+                        <defs>
+                            <pattern
+                                id="smallGrid"
+                                width="20"
+                                height="20"
+                                patternUnits="userSpaceOnUse"
+                            >
+                                <path
+                                    d="M 20 0 L 0 0 0 20"
+                                    fill="none"
+                                    stroke="#374151"
+                                    stroke-width="0.5"
+                                />
+                            </pattern>
+                            <pattern
+                                id="grid"
+                                width="100"
+                                height="100"
+                                patternUnits="userSpaceOnUse"
+                            >
+                                <rect width="100" height="100" fill="url(#smallGrid)" />
+                                <path
+                                    d="M 100 0 L 0 0 0 100"
+                                    fill="none"
+                                    stroke="#4B5563"
+                                    stroke-width="1"
+                                />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
 
-                    <!-- Center Lines -->
-                    <div class="absolute inset-0">
-                        <div class="absolute top-1/2 left-0 right-0 h-px bg-yellow-400/50"></div>
-                        <div class="absolute left-1/2 top-0 bottom-0 w-px bg-yellow-400/50"></div>
-                    </div>
-
-                    <!-- Waveforms -->
-                    <svg class="absolute inset-0 w-full h-full">
-                        <!-- GPIO Digital Signals -->
-                        <path
-                            d="M 0 100 L 50 100 L 50 50 L 100 50 L 100 100 L 150 100 L 150 50 L 200 50 L 200 100 L 250 100 L 250 50 L 300 50 L 300 100 L 350 100 L 350 50 L 400 50 L 400 100 L 450 100 L 450 50 L 500 50"
-                            fill="none"
-                            stroke="#10B981"
-                            stroke-width="3"
-                            class="animate-pulse"
-                        />
-                        <path
-                            d="M 0 200 L 30 200 L 30 150 L 80 150 L 80 200 L 120 200 L 120 150 L 170 150 L 170 200 L 220 200 L 220 150 L 270 150 L 270 200 L 320 200 L 320 150 L 370 150 L 370 200 L 420 200 L 420 150 L 500 150"
-                            fill="none"
-                            stroke="#3B82F6"
-                            stroke-width="3"
-                            class="animate-pulse"
-                            style="animation-delay: 0.5s"
-                        />
                     </svg>
 
                     <!-- Channel Labels -->
                     <div class="absolute top-2 left-2 space-y-1">
                         <div class="flex items-center space-x-2">
                             <div class="w-3 h-3 bg-green-400 rounded-full"></div>
-                            <span class="text-xs text-green-400">GPIO_0 (Digital)</span>
+                            <span class="text-xs text-green-400">CH1 (Real GPIO pin17-pin18)</span>
                         </div>
                         <div class="flex items-center space-x-2">
                             <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
-                            <span class="text-xs text-blue-400">GPIO_1 (Digital)</span>
+                            <span class="text-xs text-blue-400">CH2 (Real GPIO pin22-pin23)</span>
                         </div>
                     </div>
 
@@ -588,13 +562,7 @@
                         <div class="text-yellow-400">High: 3.3V</div>
                     </div>
 
-                    <!-- Trigger Indicator -->
-                    <div class="absolute bottom-2 left-2">
-                        <div class="flex items-center space-x-2">
-                            <div class="w-2 h-2 bg-red-400 rounded-full animate-pulse"></div>
-                            <span class="text-xs text-red-400">Triggered</span>
-                        </div>
-                    </div>
+
                 </div>
             </div>
         </div>
@@ -614,14 +582,11 @@
         function initSocket() {
             try {
                 socket = io();
-                console.log('Socket.IO initialized');
 
                 socket.on('connect', function() {
-                    console.log('Connected to server');
                 });
 
                 socket.on('disconnect', function() {
-                    console.log('Disconnected from server');
                 });
 
                 // Handle flash progress updates
@@ -643,17 +608,25 @@
                     updateSerialStatus(data);
                 });
 
+                // Handle logic analyzer data
+                socket.on('logic_analyzer_data', function(data) {
+                    updateOscilloscopeDisplay(data);
+                });
+
+
+
+                // Test socket connection
+                socket.on('test_event', function(data) {
+                });
+
                 // Handle streaming status updates
                 socket.on('streaming_status', function(data) {
-                    console.log('Streaming status:', data);
                     if (data.type === 'video') {
                         if (data.status === 'started') {
-                            console.log('Video streaming started');
                             showVideoElement();
                             // Update button states
                             toggleVideoButtons(true);
                         } else if (data.status === 'stopped') {
-                            console.log('Video streaming stopped');
                             hideVideoElement();
                             // Update button states
                             toggleVideoButtons(false);
@@ -665,11 +638,9 @@
                         }
                     } else if (data.type === 'audio') {
                         if (data.status === 'started') {
-                            console.log('Audio streaming started');
                             // Update button states
                             toggleAudioButtons(true);
                         } else if (data.status === 'stopped') {
-                            console.log('Audio streaming stopped');
                             // Update button states
                             toggleAudioButtons(false);
                         } else if (data.status === 'error') {
@@ -679,7 +650,6 @@
                         }
                     } else if (data.type === 'all') {
                         if (data.status === 'stopped') {
-                            console.log('All streaming stopped');
                             hideVideoElement();
                             // Reset all button states
                             toggleVideoButtons(false);
@@ -690,13 +660,11 @@
 
                 // Hub Controls event handlers
                 socket.on('hub_controls_cleared', function(data) {
-                    console.log('Hub controls cleared');
                     // Clear all existing controls from UI
                     clearAllHubControls();
                 });
 
                 socket.on('hub_controls_detected', function(data) {
-                    console.log('Hub controls detected:', data.values);
                     // Auto-create reader controls for detected values
                     data.values.forEach(valueName => {
                         createHubControlUI(valueName, 'reader');
@@ -704,7 +672,6 @@
                 });
 
                 socket.on('hub_commands_detected', function(data) {
-                    console.log('Hub commands detected:', data.commands);
                     // Update global detected commands
                     window.detectedCommands = new Set(data.commands);
                     // Re-render existing controls to update dropdowns
@@ -716,23 +683,19 @@
                 });
 
                 socket.on('hub_control_created', function(data) {
-                    console.log('Hub control created:', data.control);
                     hubControls.push(data.control);
                     renderHubControl(data.control);
                 });
 
                 socket.on('hub_control_updated', function(data) {
-                    console.log('Hub control updated:', data.control);
                     updateHubControlUI(data.control);
                 });
 
                 socket.on('hub_control_deleted', function(data) {
-                    console.log('Hub control deleted:', data.control);
                     removeHubControlUI(data.control.id);
                 });
 
                 socket.on('control_command_sent', function(data) {
-                    console.log('Control command sent:', data);
                     updateControlValueDisplay(data.id, data.value);
                 });
 
@@ -831,7 +794,6 @@
         }
 
         function updateSerialStatus(data) {
-            console.log('Serial status:', data);
             const toggleBtn = document.getElementById('serialToggleBtn');
 
             if (data.status === 'started') {
@@ -950,7 +912,6 @@
                     })
                     .then(response => response.json())
                     .then(data => {
-                        console.log('Flash started:', data);
                     })
                     .catch(error => {
                         console.error('Flash error:', error);
@@ -1170,12 +1131,10 @@
 
         // Slide management functions
         function updateSlideCarousel() {
-            console.log('updateSlideCarousel called, totalSlides:', totalSlides);
             const carousel = document.getElementById('slideCarousel');
             const addButton = document.getElementById('addSlideBtn');
 
             if (!carousel) {
-                console.error('slideCarousel element not found');
                 return;
             }
 
@@ -1184,6 +1143,9 @@
 
             // Create slide buttons
             for (let i = 1; i <= totalSlides; i++) {
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'relative flex items-center';
+
                 const button = document.createElement('button');
                 button.className = `w-8 h-8 rounded text-sm transition-all duration-200 ${
                     i === currentSlide
@@ -1192,7 +1154,24 @@
                 }`;
                 button.textContent = i;
                 button.onclick = () => switchToSlide(i);
-                carousel.appendChild(button);
+                buttonContainer.appendChild(button);
+
+                // Add close button for slides after the first one
+                if (i > 1) {
+                    const closeButton = document.createElement('button');
+                    closeButton.className = 'absolute -top-1 -right-1 w-4 h-4 bg-red-500/80 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center transition-all duration-200';
+                    closeButton.innerHTML = '×';
+                    closeButton.title = 'Remove slide';
+                    closeButton.onclick = (e) => {
+                        e.stopPropagation(); // Prevent triggering slide switch
+                        if (confirm(`Remove "${slides[i-1].name}" slide?`)) {
+                            removeSlide(i);
+                        }
+                    };
+                    buttonContainer.appendChild(closeButton);
+                }
+
+                carousel.appendChild(buttonContainer);
             }
 
             // Update add button state
@@ -1219,13 +1198,41 @@
         function addSerialPlotSlide() {
             if (totalSlides >= 5) return;
 
+            // Prompt for slide name if adding after first slide
+            let slideName = '';
+            if (totalSlides >= 1) {
+                slideName = prompt('Enter slide name:', `Slide ${totalSlides + 1}`);
+                if (!slideName || slideName.trim() === '') {
+                    return; // Cancel if no name provided
+                }
+                slideName = slideName.trim();
+            } else {
+                slideName = 'Serial Plot 1';
+            }
+
             totalSlides++;
             slides.push({
                 type: 'serial',
-                name: `Serial Plot ${totalSlides}`
+                name: slideName
             });
 
             switchToSlide(totalSlides);
+        }
+
+        function removeSlide(slideNumber) {
+            if (slideNumber === 1 || totalSlides <= 1) return; // Cannot remove first slide
+
+            // Remove slide from array
+            slides.splice(slideNumber - 1, 1);
+            totalSlides--;
+
+            // Adjust current slide if necessary
+            if (currentSlide > totalSlides) {
+                currentSlide = totalSlides;
+            }
+
+            updateSlideCarousel();
+            updateControlsForSlide();
         }
 
         function updateSlideDisplay() {
@@ -1362,7 +1369,7 @@
 
         function updateWaveformDisplay() {
             const currentSlideData = slides[currentSlide - 1];
-            const svgElement = document.querySelector('svg.absolute.inset-0.w-full.h-full');
+            const svgElement = document.getElementById('waveformSvg');
             const channelLabels = document.querySelector('.absolute.top-2.left-2.space-y-1');
             const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
 
@@ -1789,14 +1796,18 @@
 
             // Clear local hub controls array
             hubControls.length = 0;
-
-            console.log('All hub controls cleared from UI');
         }
 
         function removeHubControlUI(controlId) {
             const controlElement = document.getElementById(`control-${controlId}`);
             if (controlElement) {
                 controlElement.remove();
+            }
+
+            // Also remove from local hubControls array to prevent re-rendering
+            const controlIndex = hubControls.findIndex(control => control.id === controlId);
+            if (controlIndex !== -1) {
+                hubControls.splice(controlIndex, 1);
             }
         }
 
@@ -1857,14 +1868,7 @@
 
         function handleCustomValueKeypress(event, controlId, index) {
             if (event.key === 'Enter') {
-                const inputElement = document.getElementById(`val${index + 1}-custom-${controlId}`);
-                if (!inputElement) return;
-
-                const customValue = inputElement.value.trim();
-                if (!customValue) return;
-
-                updateToggleValue(controlId, index, customValue);
-                inputElement.value = ''; // Clear the input after use
+                confirmToggleValue(controlId, index);
             }
         }
 
@@ -1969,7 +1973,7 @@
             // Check if control exists in our local array
             const controlExists = hubControls.some(c => c.id === controlId);
             if (!controlExists) {
-                console.warn(`Control ${controlId} not found locally, but attempting deletion anyway`);
+                // Control not found locally, but attempting deletion anyway
             }
 
             if (confirm('Are you sure you want to delete this control?')) {
@@ -2122,6 +2126,16 @@
                 return;
             }
 
+            // Check if control with same name already exists
+            const existingControl = hubControls.find(control =>
+                control.name.toLowerCase() === controlName.toLowerCase()
+            );
+
+            if (existingControl) {
+                alert(`A control with the name "${controlName}" already exists. Please choose a different name.`);
+                return;
+            }
+
             // Close modal
             closeAddControlModal();
 
@@ -2159,6 +2173,300 @@
             }
         });
 
+        // Oscilloscope control functions
+        function setupOscilloscopeControls() {
+            const startBtn = document.getElementById('oscilloscopeStartBtn');
+            const stopBtn = document.getElementById('oscilloscopeStopBtn');
+            const clearBtn = document.getElementById('oscilloscopeClearBtn');
+
+            // Start button
+            if (startBtn) {
+                startBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        fetch('/logic/start', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'started') {
+                                    startBtn.disabled = true;
+                                    stopBtn.disabled = false;
+                                } else {
+                                    alert('Failed to start logic analyzer: ' + (data.message || 'Unknown error'));
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error starting logic analyzer:', error);
+                                alert('Failed to start logic analyzer');
+                            });
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Stop button
+            if (stopBtn) {
+                stopBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        fetch('/logic/stop', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'stopped') {
+                                    startBtn.disabled = false;
+                                    stopBtn.disabled = true;
+                                } else {
+                                    alert('Failed to stop logic analyzer: ' + (data.message || 'Unknown error'));
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error stopping logic analyzer:', error);
+                                alert('Failed to stop logic analyzer');
+                            });
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Clear button
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    if (socket && socket.connected) {
+                        fetch('/logic/clear', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'cleared') {
+                                    // Reset the display to show empty waveforms
+                                    resetOscilloscopeDisplay();
+                                } else {
+                                    alert('Failed to clear logic analyzer data');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error clearing logic analyzer:', error);
+                                alert('Failed to clear logic analyzer data');
+                            });
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Timebase control
+            const timebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
+            if (timebaseSlider) {
+                timebaseSlider.addEventListener('input', function() {
+                    const timebaseValue = this.value;
+                    // Convert slider value to timebase (0.001 to 10 seconds)
+                    const timebase = Math.pow(10, (timebaseValue - 50) / 25); // Exponential scale
+                    updateTimebaseLabel(timebase);
+
+                    if (socket && socket.connected) {
+                        fetch('/logic/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ timebase: timebase })
+                        }).catch(error => console.error('Error updating timebase:', error));
+                    }
+                });
+            }
+
+            // Amplitude control
+            const amplitudeSlider = document.querySelector('#amplitudeControl input[type="range"]');
+            if (amplitudeSlider) {
+                amplitudeSlider.addEventListener('input', function() {
+                    const amplitudeValue = this.value;
+                    // Convert slider value to amplitude scale (0.1 to 10)
+                    const amplitudeScale = Math.pow(10, (amplitudeValue - 50) / 25);
+                    updateAmplitudeLabel(amplitudeScale);
+
+                    if (socket && socket.connected) {
+                        fetch('/logic/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ amplitude_scale: amplitudeScale })
+                        }).catch(error => console.error('Error updating amplitude:', error));
+                    }
+                });
+            }
+
+            // Channel selection
+            const channelSelect = document.querySelector('#gpioChannelControl select');
+            if (channelSelect) {
+                channelSelect.addEventListener('change', function() {
+                    const channelMode = this.value.toLowerCase(); // 'channel 1', 'channel 2', 'both' -> 'ch1', 'ch2', 'both'
+
+                    let mode = 'both';
+                    if (channelMode.includes('1')) mode = 'ch1';
+                    else if (channelMode.includes('2')) mode = 'ch2';
+
+                    if (socket && socket.connected) {
+                        fetch('/logic/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channel_mode: mode })
+                        }).catch(error => console.error('Error updating channel mode:', error));
+                    }
+                });
+            }
+
+
+        }
+
+        function updateTimebaseLabel(timebase) {
+            const label = document.querySelector('#timebaseControl label');
+            if (label) {
+                let unit = 's/div';
+                let value = timebase;
+                if (timebase < 0.001) {
+                    value = timebase * 1000;
+                    unit = 'ms/div';
+                } else if (timebase < 1) {
+                    value = timebase * 1000;
+                    unit = 'ms/div';
+                }
+                label.textContent = `Time-base: ${value.toFixed(1)}${unit}`;
+            }
+        }
+
+        function updateAmplitudeLabel(amplitude) {
+            const label = document.querySelector('#amplitudeControl label');
+            if (label) {
+                label.textContent = `Amplitude: ${amplitude.toFixed(1)}V/div`;
+            }
+        }
+
+        function updateOscilloscopeDisplay(data) {
+            const svgElement = document.getElementById('waveformSvg');
+            const channelLabels = document.querySelector('.absolute.top-2.left-2.space-y-1');
+            const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
+
+            if (!svgElement || !data) return;
+
+            // Clear existing paths but keep the grid
+            // Remove all path elements (waveforms) but keep defs and rect (grid)
+            const paths = svgElement.querySelectorAll('path:not(.grid-pattern)');
+            paths.forEach(path => path.remove());
+
+            // Get actual display dimensions from the SVG element
+            const rect = svgElement.getBoundingClientRect();
+            const width = rect.width;
+            const height = rect.height;
+
+            // Scale factors - adjust for digital signals (+1/-1 range)
+            const xScale = (width - 20) / Math.max(data.ch1_data.length, data.ch2_data.length, 1); // Leave 10px margin on each side to prevent clipping
+            const yScale = height / 8; // Scale for +/- 1V digital signals - eighth height for optimal visibility
+
+            // Create path for CH1
+            if (data.ch1_data && data.ch1_data.length > 0 && (data.channel_mode === 'both' || data.channel_mode === 'ch1')) {
+                let pathData = '';
+                let lastY = null;
+
+                data.ch1_data.forEach((value, index) => {
+                    const x = index * xScale;
+                    const y = height / 2 - ((value - 0.5) * yScale * data.scale); // Center at middle, apply amplitude scaling
+
+                    if (index === 0) {
+                        pathData = `M ${x} ${y}`;
+                        lastY = y;
+                    } else {
+                        // Create horizontal line at previous level, then vertical transition
+                        pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                        lastY = y;
+                    }
+                });
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#10B981');
+                path.setAttribute('stroke-width', '3');
+                path.classList.add('animate-pulse');
+                svgElement.appendChild(path);
+            }
+
+            // Create path for CH2
+            if (data.ch2_data && data.ch2_data.length > 0 && (data.channel_mode === 'both' || data.channel_mode === 'ch2')) {
+                let pathData = '';
+                let lastY = null;
+
+                data.ch2_data.forEach((value, index) => {
+                    const x = index * xScale;
+                    const y = height / 2 - ((value - 0.5) * yScale * data.scale); // Center at middle, apply amplitude scaling
+
+                    if (index === 0) {
+                        pathData = `M ${x} ${y}`;
+                        lastY = y;
+                    } else {
+                        // Create horizontal line at previous level, then vertical transition
+                        pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                        lastY = y;
+                    }
+                });
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#3B82F6');
+                path.setAttribute('stroke-width', '3');
+                path.classList.add('animate-pulse');
+                if (data.ch1_data && data.ch1_data.length > 0) {
+                    path.style.animationDelay = '0.5s';
+                }
+                svgElement.appendChild(path);
+            }
+
+            // Update channel labels
+            if (channelLabels) {
+                channelLabels.innerHTML = '';
+
+                if (data.channel_mode === 'both' || data.channel_mode === 'ch1') {
+                    channelLabels.innerHTML += `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-xs text-green-400">CH1 (Real GPIO pin17-pin18)</span>
+                        </div>
+                    `;
+                }
+
+                if (data.channel_mode === 'both' || data.channel_mode === 'ch2') {
+                    channelLabels.innerHTML += `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                            <span class="text-xs text-blue-400">CH2 (Real GPIO pin22-pin23)</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // Update measurements
+            if (measurements) {
+                measurements.innerHTML = `
+                    <div class="text-green-400">Sampling: ${data.sampling_rate}Hz</div>
+                    <div class="text-blue-400">Timebase: ${(data.timebase * 1000).toFixed(1)}ms/div</div>
+                    <div class="text-yellow-400">Scale: ${data.scale.toFixed(1)}x</div>
+                `;
+            }
+        }
+
+        function resetOscilloscopeDisplay() {
+            const svgElement = document.getElementById('waveformSvg');
+            if (svgElement) {
+                svgElement.innerHTML = '';
+            }
+
+            // Reset measurements
+            const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
+            if (measurements) {
+                measurements.innerHTML = `
+                    <div class="text-gray-400">No data</div>
+                    <div class="text-gray-400">Ready to start</div>
+                    <div class="text-gray-400">--</div>
+                `;
+            }
+        }
+
+
+
         // Initialize when page loads
         document.addEventListener('DOMContentLoaded', function() {
             initSocket();
@@ -2166,6 +2474,7 @@
             setupFileUpload();
             setupSerialControls(); // Initialize serial controls
             setupStreamingControls(); // Initialize video/audio controls
+            setupOscilloscopeControls(); // Initialize oscilloscope controls
             setupHubControls(); // Initialize hub controls
             refreshDevices(); // Load devices on page load
             updateSlideCarousel(); // Initialize slide carousel

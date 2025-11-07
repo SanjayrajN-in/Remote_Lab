@@ -245,12 +245,23 @@ def analyze_serial_data_for_controls(data):
                 if cmd and len(cmd) > 0:
                     detected_commands.add(cmd.lower())
 
-    # Update global patterns
+    # Update global patterns and auto-update Reader controls
     for var_name, info in detected_values.items():
         if var_name not in serial_value_patterns:
             serial_value_patterns[var_name] = info
         else:
             serial_value_patterns[var_name].update(info)
+
+        # Auto-update Reader controls with detected values
+        for control in hub_controls:
+            if control['type'] == 'reader' and control['name'].lower() == var_name.lower():
+                # Update the control value
+                update_control_value(control['id'], info['value'])
+                # Emit update to frontend
+                socketio.emit('hub_control_updated', {'control': {
+                    'id': control['id'],
+                    'current_value': info['value']
+                }})
 
     # Store detected commands globally
     if not hasattr(analyze_serial_data_for_controls, 'detected_commands'):
@@ -276,18 +287,15 @@ def create_hub_control(value_name, device_info=None, control_type=None):
 
     # Validate input
     if not value_name or not isinstance(value_name, str):
-        print(f"Invalid control name: {value_name}")
         return None
 
     value_name = value_name.strip()
     if not value_name:
-        print("Empty control name provided")
         return None
 
     # Check if control already exists
     for control in hub_controls:
         if control['name'] == value_name:
-            print(f"Control '{value_name}' already exists")
             return control
 
     # Use provided type or detect control type
@@ -295,7 +303,6 @@ def create_hub_control(value_name, device_info=None, control_type=None):
         # Validate control type
         valid_types = ['slider', 'toggle', 'reader']
         if control_type not in valid_types:
-            print(f"Invalid control type: {control_type}, defaulting to slider")
             control_type = 'slider'
 
         # Get base config for the specified type
@@ -321,7 +328,6 @@ def create_hub_control(value_name, device_info=None, control_type=None):
     }
 
     hub_controls.append(control)
-    print(f"Created new control: {control['name']} (ID: {control['id']})")
     return control
 
 def update_control_value(control_id, value):
@@ -358,8 +364,6 @@ def send_control_command(control_id, value):
             # For sliders and other controls, use command template
             command_template = control['config']['command_template']
             command = command_template.replace('{value}', str(value))
-
-        print(f"Sending command for {control['type']} control: '{command}'")  # Debug log
 
         # Send command
         serial_connection.write((command + '\n').encode('utf-8'))
@@ -1124,7 +1128,6 @@ def handle_update_hub_control(data):
                 if 'enabled' in data:
                     control['enabled'] = data['enabled']
 
-                print(f"Updated control {control_id}: {control['config']}")  # Debug log
                 emit('hub_control_updated', {'control': control})
                 return
 
@@ -1156,7 +1159,6 @@ def handle_delete_hub_control(data):
                 if control_id in control_values:
                     del control_values[control_id]
 
-                print(f"Deleted control: {deleted_control['name']} (ID: {control_id})")
                 emit('hub_control_deleted', {'control': deleted_control})
                 return
 
@@ -1351,6 +1353,25 @@ def configure_logic_analyzer():
         return jsonify({'status': 'configured'}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/clear', methods=['POST'])
+def clear_logic_analyzer():
+    """Clear logic analyzer data buffers"""
+    try:
+        # Stop acquisition if running
+        logic_analyzer_manager.stop_acquisition()
+
+        # Clear buffers
+        with logic_analyzer_manager.buffer_lock:
+            logic_analyzer_manager.ch1_diff_buffer.clear()
+            logic_analyzer_manager.ch2_diff_buffer.clear()
+            logic_analyzer_manager.timestamp_buffer.clear()
+
+        return jsonify({'status': 'cleared'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 
 # Hub Controls Routes
 @app.route('/hub/controls')

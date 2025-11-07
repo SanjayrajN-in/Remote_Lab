@@ -10,7 +10,6 @@ try:
     LGPIO_AVAILABLE = True
 except ImportError:
     LGPIO_AVAILABLE = False
-    print("lgpio not available - logic analyzer will not function")
 
 # Global instances
 _logic_analyzer_manager = None
@@ -43,8 +42,9 @@ class LogicAnalyzerManager:
 
         # Simple acquisition parameters
         self.sampling_rate = 10000  # 10 kHz sampling (safer default)
-        self.buffer_size = 10000     # Buffer for 0.1 seconds of data
+        self.buffer_size = 20000     # Buffer for 0.2 seconds of data (increased for longer waveforms)
         self.stream_interval = 0.05  # Send data every 50ms
+
 
         # Simple data buffers - just the differential values
         self.ch1_diff_buffer = deque(maxlen=self.buffer_size)
@@ -53,8 +53,10 @@ class LogicAnalyzerManager:
 
         # Control parameters
         self.channel_mode = 'both'  # 'ch1', 'ch2', 'both'
-        self.timebase = 0.001      # 1ms/div default
+        self.timebase = 0.00001    # 10uS/div default (minimum)
         self.amplitude_scale = 1.0
+
+        # No trigger functionality - continuous capture only
 
         # Threading
         self.acquisition_thread = None
@@ -75,13 +77,10 @@ class LogicAnalyzerManager:
             pins = [self.PIN_CH1_POS, self.PIN_CH1_NEG, self.PIN_CH2_POS, self.PIN_CH2_NEG]
             for pin in pins:
                 lgpio.gpio_claim_input(self.chip, pin)
-                print(f"Claimed GPIO pin {pin} as input")
 
-            print("GPIO initialized successfully")
             return True, "GPIO initialized successfully"
         except Exception as e:
             self.cleanup_gpio()
-            print(f"GPIO initialization failed: {str(e)}")
             return False, f"GPIO initialization failed: {str(e)}"
 
     def cleanup_gpio(self):
@@ -114,7 +113,6 @@ class LogicAnalyzerManager:
             self.stop_event.clear()
 
             self.acquiring = True
-            print("Starting logic analyzer acquisition...")
 
             # Test socket connection
             self.socketio.emit('test_event', {'message': 'Logic analyzer started'})
@@ -123,13 +121,11 @@ class LogicAnalyzerManager:
             self.acquisition_thread = threading.Thread(target=self._acquisition_loop)
             self.acquisition_thread.daemon = True
             self.acquisition_thread.start()
-            print("Acquisition thread started")
 
             # Start streaming thread
             self.stream_thread = threading.Thread(target=self._streaming_loop)
             self.stream_thread.daemon = True
             self.stream_thread.start()
-            print("Streaming thread started")
 
             return True, "Logic analyzer acquisition started"
         except Exception as e:
@@ -176,8 +172,8 @@ class LogicAnalyzerManager:
         try:
             # Ensure timebase is within reasonable bounds
             timebase_val = float(timebase)
-            if timebase_val < 0.0001:  # Minimum 0.1ms
-                timebase_val = 0.0001
+            if timebase_val < 0.00001:  # Minimum 10uS
+                timebase_val = 0.00001
             elif timebase_val > 10.0:  # Maximum 10s
                 timebase_val = 10.0
             self.timebase = timebase_val
@@ -196,7 +192,7 @@ class LogicAnalyzerManager:
 
 
     def _acquisition_loop(self):
-        """Acquisition loop with atomic GPIO reads and simple timing"""
+        """Continuous acquisition loop - samples GPIO pins and stores data"""
         sample_interval = 1.0 / self.sampling_rate
         last_sample_time = time.time()
         sample_count = 0
@@ -219,7 +215,9 @@ class LogicAnalyzerManager:
                     ch1_pos, ch1_neg, ch2_pos, ch2_neg = pin_reads
 
                     # Compute differences: pos - neg gives +1, 0, or -1
+                    # Channel 1: pin17 (pos) - pin18 (neg)
                     ch1_diff = ch1_pos - ch1_neg
+                    # Channel 2: pin22 (pos) - pin23 (neg)
                     ch2_diff = ch2_pos - ch2_neg
 
                     # Store the differential values with thread safety
@@ -231,36 +229,11 @@ class LogicAnalyzerManager:
                     sample_count += 1
                     last_sample_time = current_time
 
-                    # Print status occasionally
-                    if sample_count % 5000 == 0:
-                        print(f"Sample {sample_count}: CH1={ch1_diff}, CH2={ch2_diff}")
-
                 # Small sleep to prevent CPU hogging
                 time.sleep(0.0001)
 
             except Exception as e:
-                print(f"Logic analyzer acquisition error: {e}")
                 break
-
-        print(f"Acquisition loop ended. Total samples: {sample_count}")
-
-    def _check_trigger_condition(self, current_value, previous_value, edge, level):
-        """Check if trigger condition is met"""
-        if previous_value is None:
-            return False
-
-        # Convert level to digital threshold (0.5 = midpoint)
-        threshold = level
-
-        if edge == 'rising':
-            return previous_value < threshold and current_value >= threshold
-        elif edge == 'falling':
-            return previous_value > threshold and current_value <= threshold
-        elif edge == 'both':
-            return (previous_value < threshold and current_value >= threshold) or \
-                   (previous_value > threshold and current_value <= threshold)
-
-        return False
 
     def _analyze_pwm_signal(self, data, timestamps):
         """Analyze PWM signal to calculate frequency and duty cycle"""
@@ -371,6 +344,10 @@ class LogicAnalyzerManager:
                     target_samples = int(target_time_window * self.sampling_rate)
                     max_samples = min(target_samples, buffer_size, 5000)  # Cap at 5000 samples
                     max_samples = max(max_samples, 1000)  # Minimum 1000 samples for stability
+
+                    # For proper display, we need to ensure we send exactly the right number of samples
+                    # that fit the display width. The frontend expects data that can be scaled to fit 500px width
+                    # So we should send samples that represent the full time window properly
                     start_idx = max(0, buffer_size - max_samples)
 
                     # Prepare data for frontend - copy data while holding lock
@@ -387,9 +364,6 @@ class LogicAnalyzerManager:
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)
-
-                if stream_count % 10 == 0:
-                    print(f"Stream {stream_count}: Sent {max_samples} samples")
 
             except Exception as e:
                 print(f"Logic analyzer streaming error: {e}")
