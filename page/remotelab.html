@@ -1292,8 +1292,8 @@
 
                 const button = document.createElement('button');
                 button.className = `w-8 h-8 rounded text-sm transition-all duration-200 ${i === currentSlide
-                        ? 'bg-blue-500/30 border border-blue-500/50 text-blue-300'
-                        : 'bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400'
+                    ? 'bg-blue-500/30 border border-blue-500/50 text-blue-300'
+                    : 'bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400'
                     }`;
                 button.textContent = i;
                 button.onclick = () => switchToSlide(i);
@@ -1501,21 +1501,7 @@
             </div>
 
             <!-- Bottom Row - Scale Controls -->
-                 <div class="grid grid-cols-2 gap-2">
-                         <!-- Amplitude Control -->
-                     <div id="amplitudeControl" class="p-0">
-                         <label class="block text-xs font-medium mb-0">
-                                 Amplitude: 2V/div
-                             </label>
-                             <input
-                                 type="range"
-                                 min="0"
-                                 max="100"
-                                 value="25"
-                                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                             />
-                         </div>
-
+                 <div class="grid grid-cols-1 gap-2">
                          <!-- Timebase Control -->
                          <div id="timebaseControl" class="p-0">
                              <label class="block text-xs font-medium mb-0">
@@ -1537,6 +1523,19 @@
 
                 // Setup custom format handlers
                 setupCustomFormatHandlers();
+
+                // Setup timebase slider for serial plots
+                const serialTimebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
+                if (serialTimebaseSlider) {
+                    serialTimebaseSlider.addEventListener('input', function () {
+                        const timebaseValue = this.value;
+                        // Convert slider value to plot timespan (100ms to 60s)
+                        const timespan = Math.pow(10, (timebaseValue - 50) / 25) * 1000; // Convert to ms
+                        serialPlotData.plotTimespan = Math.max(100, Math.min(60000, timespan)); // Clamp 100ms-60s
+                        updateSerialTimebaseLabel(serialPlotData.plotTimespan);
+                        updateWaveformDisplay();
+                    });
+                }
             }
 
             updateWaveformDisplay();
@@ -1592,20 +1591,20 @@
                     `;
                 }
             } else if (currentSlideData.type === 'serial') {
-            // Serial Plot display
-            if (svgElement) {
-            // Clear existing paths and text labels but keep the grid
-            svgElement.querySelectorAll('path:not(.grid-pattern)').forEach(path => path.remove());
-                     svgElement.querySelectorAll('text').forEach(text => text.remove());
+                // Serial Plot display
+                if (svgElement) {
+                    // Clear existing paths and text labels but keep the grid
+                    svgElement.querySelectorAll('path:not(.grid-pattern)').forEach(path => path.remove());
+                    svgElement.querySelectorAll('text').forEach(text => text.remove());
 
-            // Get SVG dimensions
-            const rect = svgElement.getBoundingClientRect();
-            const width = rect.width;
-                     const height = rect.height;
+                    // Get SVG dimensions
+                    const rect = svgElement.getBoundingClientRect();
+                    const width = rect.width;
+                    const height = rect.height;
 
-            // Draw grid pattern if not exists
-            if (!svgElement.querySelector('defs')) {
-            svgElement.innerHTML = `
+                    // Draw grid pattern if not exists
+                    if (!svgElement.querySelector('defs')) {
+                        svgElement.innerHTML = `
             <defs>
             <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
                 <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5"/>
@@ -1617,11 +1616,11 @@
             </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
                 `;
-                     }
+                    }
 
-            // Draw serial plot for both channels
-                drawSerialPlot(svgElement, width, height, channelLabels, measurements);
-                 }
+                    // Draw serial plot for both channels
+                    drawSerialPlot(svgElement, width, height, channelLabels, measurements);
+                }
 
                 if (channelLabels) {
                     channelLabels.innerHTML = `
@@ -1856,31 +1855,31 @@
 
         // Serial plot buffers with value tracking
         window.serialPlotData = {
-        ch1: {
-        values: [],
-        timestamps: [],
-        selectedValue: null,
-        customFormat: null,  // Custom format pattern for value extraction
-        maxPoints: 1000,  // Maximum points to store
-        minValue: Infinity,
-        maxValue: -Infinity,
-            scale: 1.0
-        },
-        ch2: {
-        values: [],
-        timestamps: [],
-        selectedValue: null,
-        customFormat: null,  // Custom format pattern for value extraction
-        maxPoints: 1000,
-        minValue: Infinity,
-            maxValue: -Infinity,
-            scale: 1.0
-        },
-        plotTimespan: 10000,  // 10 seconds default timespan
-        lastUpdate: 0,
+            ch1: {
+                values: [],
+                timestamps: [],
+                selectedValue: null,
+                customFormat: null,  // Custom format pattern for value extraction
+                maxPoints: 1000,  // Maximum points to store
+                minValue: Infinity,
+                maxValue: -Infinity,
+                scale: 1.0
+            },
+            ch2: {
+                values: [],
+                timestamps: [],
+                selectedValue: null,
+                customFormat: null,  // Custom format pattern for value extraction
+                maxPoints: 1000,
+                minValue: Infinity,
+                maxValue: -Infinity,
+                scale: 1.0
+            },
+            plotTimespan: 10000,  // 10 seconds default timespan
+            lastUpdate: 0,
             active: false,        // Flag to control plotting
-             updateInterval: null  // Store interval ID for updates
-         };
+            updateInterval: null  // Store interval ID for updates
+        };
 
         // Hub Controls Functions
         function createHubControlUI(valueName, controlType) {
@@ -2658,7 +2657,7 @@
                         // Start Serial Plot
                         const hasCH1 = serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat;
                         const hasCH2 = serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat;
-                        
+
                         if (!hasCH1 && !hasCH2) {
                             alert('Please select at least one value to plot or enter a custom format');
                             return;
@@ -2759,40 +2758,26 @@
                 });
             }
 
-            // Timebase control
+            // Timebase control for GPIO plots
             const timebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
             if (timebaseSlider) {
                 timebaseSlider.addEventListener('input', function () {
                     const timebaseValue = this.value;
-                    // Convert slider value to timebase (0.001 to 10 seconds)
-                    const timebase = Math.pow(10, (timebaseValue - 50) / 25); // Exponential scale
-                    updateTimebaseLabel(timebase);
+                    const currentSlideData = slides[currentSlide - 1];
 
-                    if (socket && socket.connected) {
-                        fetch('/logic/config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ timebase: timebase })
-                        }).catch(error => console.error('Error updating timebase:', error));
-                    }
-                });
-            }
+                    // Only handle GPIO in setupOscilloscopeControls (serial is handled in updateControlsForSlide)
+                    if (currentSlideData && currentSlideData.type === 'gpio') {
+                        // GPIO: Convert slider value to timebase (0.001 to 10 seconds)
+                        const timebase = Math.pow(10, (timebaseValue - 50) / 25); // Exponential scale
+                        updateTimebaseLabel(timebase);
 
-            // Amplitude control
-            const amplitudeSlider = document.querySelector('#amplitudeControl input[type="range"]');
-            if (amplitudeSlider) {
-                amplitudeSlider.addEventListener('input', function () {
-                    const amplitudeValue = this.value;
-                    // Convert slider value to amplitude scale (0.1 to 10)
-                    const amplitudeScale = Math.pow(10, (amplitudeValue - 50) / 25);
-                    updateAmplitudeLabel(amplitudeScale);
-
-                    if (socket && socket.connected) {
-                        fetch('/logic/config', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ amplitude_scale: amplitudeScale })
-                        }).catch(error => console.error('Error updating amplitude:', error));
+                        if (socket && socket.connected) {
+                            fetch('/logic/config', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ timebase: timebase })
+                            }).catch(error => console.error('Error updating timebase:', error));
+                        }
                     }
                 });
             }
@@ -2863,10 +2848,16 @@
             }
         }
 
-        function updateAmplitudeLabel(amplitude) {
-            const label = document.querySelector('#amplitudeControl label');
+        function updateSerialTimebaseLabel(timespan) {
+            const label = document.querySelector('#timebaseControl label');
             if (label) {
-                label.textContent = `Amplitude: ${amplitude.toFixed(1)}V/div`;
+                let unit = 'ms';
+                let value = timespan;
+                if (timespan >= 1000) {
+                    value = timespan / 1000;
+                    unit = 's';
+                }
+                label.textContent = `Timebase: ${value.toFixed(1)}${unit}`;
             }
         }
 
@@ -3001,12 +2992,12 @@
         }
 
         function drawSerialPlot(svgElement, width, height, channelLabels, measurements) {
-        // Draw serial plot for both channels if they have data
-        const drawChannel = (channel, color, yOffset) => {
-        const data = serialPlotData[channel];
-        // Allow drawing if selectedValue is set OR if using customFormat with data
-                 const hasSelection = data.selectedValue || (data.customFormat && data.values && data.values.length > 0);
-                 if (!hasSelection || !data.values || data.values.length === 0) return null;
+            // Draw serial plot for both channels if they have data
+            const drawChannel = (channel, color, yOffset) => {
+                const data = serialPlotData[channel];
+                // Allow drawing if selectedValue is set OR if using customFormat with data
+                const hasSelection = data.selectedValue || (data.customFormat && data.values && data.values.length > 0);
+                if (!hasSelection || !data.values || data.values.length === 0) return null;
 
                 // Calculate time range for x-axis
                 const timeRange = Math.min(
@@ -3053,14 +3044,14 @@
                 const scaleSteps = 5; // Number of scale divisions
                 const textMargin = 20; // Margin to prevent text clipping
                 const isLeftSide = channel === 'ch1'; // CH1 on left, CH2 on right
-                
+
                 for (let i = 0; i <= scaleSteps; i++) {
                     const value = yMin + (yMax - yMin) * (i / scaleSteps);
                     const y = height / 2 - ((value - yMin) * yScale);
-                    
+
                     // Clamp y position to prevent text from going outside SVG bounds
                     const clampedY = Math.max(12, Math.min(height - 2, y + 4));
-                    
+
                     const scaleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
                     scaleText.setAttribute('x', isLeftSide ? textMargin : width - textMargin);
                     scaleText.setAttribute('y', clampedY);
@@ -3113,28 +3104,28 @@
 
                 // CH1 Measurements
                 if (ch1Info) {
-                measurements.innerHTML += `
+                    measurements.innerHTML += `
                 <div class="text-green-400">${ch1Info.name}: ${ch1Info.current}</div>
                 <div class="text-green-300">Range: ${ch1Info.min} - ${ch1Info.max}</div>
                 <div class="text-green-300">Scale: ${ch1Info.yMin} - ${ch1Info.yMax}</div>
                 `;
                 } else if (serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat) {
-                const label = serialPlotData.ch1.selectedValue || 'CH1_Custom';
-                measurements.innerHTML += `
+                    const label = serialPlotData.ch1.selectedValue || 'CH1_Custom';
+                    measurements.innerHTML += `
                     <div class="text-gray-400">${label}: No Data</div>
                     `;
-                 }
+                }
 
                 // CH2 Measurements
                 if (ch2Info) {
-                measurements.innerHTML += `
+                    measurements.innerHTML += `
                 <div class="text-blue-400">${ch2Info.name}: ${ch2Info.current}</div>
                     <div class="text-blue-300">Range: ${ch2Info.min} - ${ch2Info.max}</div>
                     <div class="text-blue-300">Scale: ${ch2Info.yMin} - ${ch2Info.yMax}</div>
                     `;
                 } else if (serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat) {
-                const label = serialPlotData.ch2.selectedValue || 'CH2_Custom';
-                measurements.innerHTML += `
+                    const label = serialPlotData.ch2.selectedValue || 'CH2_Custom';
+                    measurements.innerHTML += `
                          <div class="text-gray-400">${label}: No Data</div>
                      `;
                 }
