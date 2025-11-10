@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Custom Format Parser</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a1a; color: #eee; }
+        .test { margin: 20px 0; padding: 10px; border: 1px solid #333; }
+        .pass { background: #1a3a1a; border-color: #3a8a3a; }
+        .fail { background: #3a1a1a; border-color: #8a3a3a; }
+    </style>
+</head>
+<body>
+    <h1>Custom Format Parser Tests</h1>
+    <div id="results"></div>
+
+    <script>
+        // Copy the parseValueFromFormat function
+        function parseValueFromFormat(data, format) {
+            if (!format) return null;
+
+            // Replace {value} with a regex pattern to capture any number
+            const regexPattern = format
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+                .replace(/\\{value\\}/g, '([+-]?\\d*\\.?\\d+)'); // Replace {value} with number capture
+
+            try {
+                const regex = new RegExp(regexPattern);
+                const match = data.match(regex);
+                if (match && match[1]) {
+                    return parseFloat(match[1]);
+                }
+            } catch (e) {
+                console.error('Invalid custom format pattern:', format, e);
+            }
+            return null;
+        }
+
+        // Test cases
+        const tests = [
+            {
+                name: "Simple {value} pattern",
+                format: "{value}",
+                data: "123.45",
+                expected: 123.45
+            },
+            {
+                name: "RPM suffix",
+                format: "{value}RPM",
+                data: "Speed: 1500RPM",
+                expected: 1500
+            },
+            {
+                name: "Value with assignment",
+                format: "value1 = {value}",
+                data: "sensor1: value1 = 42.5 units",
+                expected: 42.5
+            },
+            {
+                name: "Temperature format",
+                format: "Temp: {value}C",
+                data: "Temp: 25.3C readings ready",
+                expected: 25.3
+            },
+            {
+                name: "Negative number",
+                format: "{value}",
+                data: "temp: -15.5",
+                expected: -15.5
+            },
+            {
+                name: "Complex format with special chars",
+                format: "Reading [value: {value}]",
+                data: "Current reading [value: 98.76]",
+                expected: 98.76
+            },
+            {
+                name: "No match returns null",
+                format: "{value}RPM",
+                data: "Speed is high",
+                expected: null
+            },
+            {
+                name: "Integer value",
+                format: "{value}",
+                data: "count: 42",
+                expected: 42
+            }
+        ];
+
+        // Run tests
+        let passed = 0;
+        let failed = 0;
+
+        tests.forEach(test => {
+            const result = parseValueFromFormat(test.data, test.format);
+            const success = result === test.expected;
+            
+            if (success) {
+                passed++;
+            } else {
+                failed++;
+            }
+
+            const div = document.createElement('div');
+            div.className = `test ${success ? 'pass' : 'fail'}`;
+            div.innerHTML = `
+                <strong>${success ? '✓' : '✗'} ${test.name}</strong><br>
+                Format: <code>${test.format}</code><br>
+                Data: <code>${test.data}</code><br>
+                Expected: <code>${test.expected}</code><br>
+                Got: <code>${result}</code>
+            `;
+            document.getElementById('results').appendChild(div);
+        });
+
+        // Summary
+        const summary = document.createElement('h2');
+        summary.style.marginTop = '30px';
+        summary.style.color = passed === tests.length ? '#3a8a3a' : '#8a3a3a';
+        summary.textContent = `Results: ${passed}/${tests.length} passed`;
+        document.getElementById('results').appendChild(summary);
+    </script>
+</body>
+</html>

@@ -170,8 +170,75 @@ def detect_control_type(value_name, context=""):
 def analyze_serial_data_for_controls(data):
     """Analyze serial data to detect potential control values and commands"""
     global serial_value_patterns
+    import re
 
-    # Patterns to detect value assignments and readings
+    # Debug: Show incoming serial data
+    print(f"[SERIAL DEBUG] Received data: '{data.strip()}'")
+
+    # First, check any existing Reader controls that have a command_template set
+    # and try to parse the incoming data using that template. This allows
+    # patterns like 'Test={value}RPM' or '{value}RPM' to be matched against
+    # serial lines such as '3RPM' or 'Test=3RPM'.
+    detected_values = {}
+    detected_commands = set()
+
+    try:
+        for control in hub_controls:
+            try:
+                if control.get('type') == 'reader':
+                    tmpl = control.get('config', {}).get('command_template')
+                    print(f"[READER DEBUG] Checking control: id={control.get('id')}, name='{control.get('name')}', template='{tmpl}'")
+                    if tmpl and '{value}' in tmpl:
+                        # Convert the template into a permissive regex:
+                        # - replace {value} first before escaping
+                        # - escape literal characters
+                        # - allow optional whitespace around separators like '=' or ':'
+                        # Replace {value} placeholder first
+                        tmpl_pattern = tmpl.replace('{value}', '<<<VALUE>>>')
+                        # Escape special regex characters
+                        tmpl_escaped = re.escape(tmpl_pattern)
+                        # Replace the placeholder with numeric capture
+                        tmpl_escaped = tmpl_escaped.replace('<<<VALUE>>>', r'([+-]?\d*\.?\d+)')
+                        # Allow optional whitespace around = or :
+                        tmpl_escaped = tmpl_escaped.replace(r'\=', r'\s*=\s*')
+                        tmpl_escaped = tmpl_escaped.replace(r'\:', r'\s*:\s*')
+                        # Replace escaped spaces with flexible whitespace
+                        tmpl_escaped = tmpl_escaped.replace(r'\ ', r'\s+')
+
+                        try:
+                            m = re.search(tmpl_escaped, data, re.IGNORECASE)
+                        except re.error:
+                            m = None
+
+                        if m:
+                            try:
+                                num = float(m.group(1))
+                                detected_values[control['name']] = {
+                                    'name': control['name'],
+                                    'value': num,
+                                    'count': 1,
+                                    'last_seen': time.time()
+                                }
+                                # Debug log to help trace template matches
+                                print(f"[READER DEBUG] Template matched: control_id={control.get('id')}, name='{control.get('name')}', template='{tmpl}', data='{data.strip()}', value={num}")
+                                
+                                # Update the control value immediately
+                                update_control_value(control['id'], num)
+                                # Emit update to frontend
+                                socketio.emit('hub_control_updated', {'control': {
+                                    'id': control['id'],
+                                    'current_value': num
+                                }})
+                            except ValueError:
+                                pass
+            except Exception:
+                # Ignore individual control parsing errors
+                continue
+    except Exception:
+        # If template-based parsing fails for any reason, continue to generic parsing
+        detected_values = {}
+
+    # Patterns to detect value assignments and readings (generic fallbacks)
     patterns = [
         # Variable assignments: var = value
         r'([a-zA-Z_][a-zA-Z0-9_]*)\s*[:=]\s*([+-]?\d*\.?\d+)',
@@ -181,6 +248,8 @@ def analyze_serial_data_for_controls(data):
         r'([a-zA-Z_][a-zA-Z0-9_]*)\s*\(\s*([+-]?\d*\.?\d+)\s*\)',
         # JSON-like: "key": value
         r'"([a-zA-Z_][a-zA-Z0-9_]*)"\s*:\s*([+-]?\d*\.?\d+)',
+        # Value followed by unit/label without separator: 123RPM or 50Speed
+        r'([+-]?\d*\.?\d+)\s*([A-Za-z_][A-Za-z0-9_]*)'
     ]
 
     # Patterns to detect command options from help text
@@ -194,40 +263,6 @@ def analyze_serial_data_for_controls(data):
         # Single quoted commands
         r"'([a-zA-Z0-9_]+)'",
     ]
-
-    detected_values = {}
-    detected_commands = set()
-
-    # Detect numeric values
-    for pattern in patterns:
-        import re
-        matches = re.findall(pattern, data, re.IGNORECASE)
-        for match in matches:
-            var_name, value = match
-            var_name = var_name.strip()
-
-            # Skip common non-control variables
-            skip_keywords = ['time', 'timestamp', 'millis', 'micros', 'delay', 'pin', 'port']
-            if any(keyword in var_name.lower() for keyword in skip_keywords):
-                continue
-
-            try:
-                numeric_value = float(value)
-                if var_name not in detected_values:
-                    detected_values[var_name] = {
-                        'name': var_name,
-                        'value': numeric_value,
-                        'count': 1,
-                        'last_seen': time.time()
-                    }
-                else:
-                    detected_values[var_name]['count'] += 1
-                    detected_values[var_name]['last_seen'] = time.time()
-                    # Update value if it's different (take the latest)
-                    if detected_values[var_name]['value'] != numeric_value:
-                        detected_values[var_name]['value'] = numeric_value
-            except ValueError:
-                continue
 
     # Detect command options from help text
     for pattern in command_patterns:

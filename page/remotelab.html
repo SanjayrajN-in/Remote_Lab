@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -28,8 +29,15 @@
         }
 
         @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         .animate-fadeIn {
@@ -37,8 +45,13 @@
         }
 
         @keyframes slideIn {
-            from { transform: translateX(-100%); }
-            to { transform: translateX(0); }
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
         }
 
         .animate-slideIn {
@@ -46,8 +59,15 @@
         }
 
         @keyframes glow {
-            0%, 100% { box-shadow: 0 0 5px rgba(59, 130, 246, 0.5); }
-            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+            }
         }
 
         .animate-glow {
@@ -210,11 +230,17 @@
         }
 
         @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
+
 <body class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
     <!-- Header -->
     <header class="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
@@ -227,7 +253,8 @@
                     <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
                     <span class="text-sm text-gray-300">Connected</span>
                 </div>
-                <button class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all duration-200">
+                <button
+                    class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all duration-200">
                     Emergency Stop
                 </button>
             </div>
@@ -249,7 +276,8 @@
                         Select Device
                         <button class="refresh-icon ml-2" onclick="refreshDevices()" title="Refresh Devices">
                             <svg viewBox="0 0 24 24" width="16" height="16">
-                                <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z"/>
+                                <path
+                                    d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" />
                             </svg>
                         </button>
                     </label>
@@ -263,27 +291,14 @@
                     <label class="block text-sm font-medium mb-2">
                         Upload Firmware
                     </label>
-                    <div class="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-blue-400/50 transition-colors cursor-pointer">
-                        <input
-                            type="file"
-                            accept=".hex,.bin"
-                            class="hidden"
-                            id="firmware-upload"
-                        />
+                    <div
+                        class="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-blue-400/50 transition-colors cursor-pointer">
+                        <input type="file" accept=".hex,.bin" class="hidden" id="firmware-upload" />
                         <label for="firmware-upload" class="cursor-pointer">
                             <div class="text-gray-400 mb-2">
-                                <svg
-                                    class="w-8 h-8 mx-auto mb-2"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
-                                    <path
-                                        stroke-linecap="round"
-                                        stroke-linejoin="round"
-                                        stroke-width="2"
-                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                                    />
+                                <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
                             </div>
                             <p>Drop HEX/BIN file here or click to browse</p>
@@ -296,16 +311,15 @@
 
                 <!-- Flash Button & Progress -->
                 <div class="space-y-3">
-                    <button class="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02]">
+                    <button
+                        class="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02]">
                         Flash Device
                     </button>
 
                     <!-- Progress Bar -->
                     <div class="bg-black/30 rounded-full h-3 overflow-hidden">
-                        <div
-                            class="bg-gradient-to-r from-green-400 to-blue-400 h-full w-0 transition-all duration-500 ease-out"
-                            style="width: 0%"
-                        ></div>
+                        <div class="bg-gradient-to-r from-green-400 to-blue-400 h-full w-0 transition-all duration-500 ease-out"
+                            style="width: 0%"></div>
                     </div>
                     <div class="flex justify-between text-xs text-gray-400">
                         <span>Status: Ready</span>
@@ -322,30 +336,31 @@
 
                 <!-- Serial Controls -->
                 <div class="grid grid-cols-2 gap-3 mb-4">
-                    <select class="bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors">
+                    <select
+                        class="bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors">
                         <option>9600</option>
                         <option>115200</option>
                         <option>57600</option>
                         <option>38400</option>
                     </select>
-                    <button id="serialToggleBtn" class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200">
+                    <button id="serialToggleBtn"
+                        class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200">
                         Connect
                     </button>
                 </div>
 
                 <!-- Terminal -->
-                <div id="serialTerminal" class="bg-black/50 rounded-lg p-4 h-48 overflow-y-auto font-mono text-sm mb-4 border border-white/10">
+                <div id="serialTerminal"
+                    class="bg-black/50 rounded-lg p-4 h-48 overflow-y-auto font-mono text-sm mb-4 border border-white/10">
                     <div class="text-gray-500 italic">[Not connected - Select a device and click Connect]</div>
                 </div>
 
                 <!-- Command Input -->
                 <div class="flex space-x-2">
-                    <input
-                        type="text"
-                        placeholder="Enter command..."
-                        class="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors"
-                    />
-                    <button class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg px-4 py-2 transition-all duration-200">
+                    <input type="text" placeholder="Enter command..."
+                        class="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors" />
+                    <button
+                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg px-4 py-2 transition-all duration-200">
                         Send
                     </button>
                 </div>
@@ -355,7 +370,8 @@
             <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold text-blue-300">Hub Controls</h2>
-                    <button class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                    <button
+                        class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                         + Add Control
                     </button>
                 </div>
@@ -374,15 +390,14 @@
                 <h2 class="text-xl font-semibold mb-4 text-blue-300">
                     Live Video Stream
                 </h2>
-                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer" style="padding-bottom: 56.25%; position: relative;">
-                    <div id="videoPlaceholder" class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer"
+                    style="padding-bottom: 56.25%; position: relative;">
+                    <div id="videoPlaceholder"
+                        class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
                         <div class="text-center">
-                            <div class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg
-                                    class="w-8 h-8 text-blue-400"
-                                    fill="currentColor"
-                                    viewBox="0 0 24 24"
-                                >
+                            <div
+                                class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
                                     <path d="M8 5v14l11-7z" />
                                 </svg>
                             </div>
@@ -393,35 +408,36 @@
                     <img id="videoElement" class="video-element" alt="Live Video Stream" style="display: none;">
 
                     <!-- Video Controls Overlay -->
-                    <div class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <button id="videoPlayBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200" title="Start Video Stream">
+                    <div
+                        class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button id="videoPlayBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200"
+                            title="Start Video Stream">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M8 5v14l11-7z" />
                             </svg>
                         </button>
-                        <button id="videoStopBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none" title="Stop Video Stream">
+                        <button id="videoStopBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none"
+                            title="Stop Video Stream">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                 <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                             </svg>
                         </button>
-                        <button id="audioMuteBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200" title="Start Audio Stream">
-                            <svg
-                                class="w-6 h-6"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    stroke-width="2"
-                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343a9 9 0 000 12.728m2.829-9.9a5 5 0 000 7.072"
-                                />
+                        <button id="audioMuteBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200"
+                            title="Start Audio Stream">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343a9 9 0 000 12.728m2.829-9.9a5 5 0 000 7.072" />
                             </svg>
                         </button>
-                        <button id="audioStopBtn" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none" title="Stop Audio Stream">
+                        <button id="audioStopBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none"
+                            title="Stop Audio Stream">
                             <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5.5 9v6h2l3 3V6l-3 3H5.5z" />
+                                <path
+                                    d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5.5 9v6h2l3 3V6l-3 3H5.5z" />
                             </svg>
                         </button>
                     </div>
@@ -434,13 +450,16 @@
                 <div class="flex justify-between items-center mb-4">
                     <h2 class="text-xl font-semibold text-blue-300">Oscilloscope</h2>
                     <div class="flex space-x-2">
-                        <button id="oscilloscopeStartBtn" class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeStartBtn"
+                            class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Start
                         </button>
-                        <button id="oscilloscopeStopBtn" class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeStopBtn"
+                            class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Stop
                         </button>
-                        <button id="oscilloscopeClearBtn" class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        <button id="oscilloscopeClearBtn"
+                            class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
                             Clear
                         </button>
                     </div>
@@ -453,13 +472,8 @@
                         <label class="block text-xs font-medium mb-0.5">
                             Time-base: 10uS/div
                         </label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value="0"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                        />
+                        <input type="range" min="0" max="100" value="0"
+                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
                     </div>
 
                     <!-- Amplitude Control -->
@@ -467,19 +481,15 @@
                         <label class="block text-xs font-medium mb-0.5">
                             Amplude: 2V/div
                         </label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value="25"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                        />
+                        <input type="range" min="0" max="100" value="25"
+                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
                     </div>
 
                     <!-- GPIO Channel Selection -->
                     <div id="gpioChannelControl" class="p-2">
                         <label class="block text-xs font-medium mb-0.5">GPIO Channel</label>
-                        <select class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                        <select
+                            class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
                             <option>Channel 1</option>
                             <option>Channel 2</option>
                             <option>Both</option>
@@ -490,11 +500,13 @@
                 <!-- Slide Carousel -->
                 <div class="flex items-center justify-between mb-3">
                     <div id="slideCarousel" class="flex space-x-2">
-                        <button class="w-8 h-8 rounded text-sm transition-all duration-200 bg-blue-500/30 border border-blue-500/50 text-blue-300">
+                        <button
+                            class="w-8 h-8 rounded text-sm transition-all duration-200 bg-blue-500/30 border border-blue-500/50 text-blue-300">
                             1
                         </button>
                     </div>
-                    <button id="addSlideBtn" class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded px-3 py-1 text-sm transition-all duration-200">
+                    <button id="addSlideBtn"
+                        class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded px-3 py-1 text-sm transition-all duration-200">
                         + Add Slide
                     </button>
                 </div>
@@ -511,32 +523,12 @@
                     <svg class="absolute inset-0 w-full h-full" id="waveformSvg" style="width: 100%; height: 100%;">
                         <!-- Grid Background -->
                         <defs>
-                            <pattern
-                                id="smallGrid"
-                                width="20"
-                                height="20"
-                                patternUnits="userSpaceOnUse"
-                            >
-                                <path
-                                    d="M 20 0 L 0 0 0 20"
-                                    fill="none"
-                                    stroke="#374151"
-                                    stroke-width="0.5"
-                                />
+                            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5" />
                             </pattern>
-                            <pattern
-                                id="grid"
-                                width="100"
-                                height="100"
-                                patternUnits="userSpaceOnUse"
-                            >
+                            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
                                 <rect width="100" height="100" fill="url(#smallGrid)" />
-                                <path
-                                    d="M 100 0 L 0 0 0 100"
-                                    fill="none"
-                                    stroke="#4B5563"
-                                    stroke-width="1"
-                                />
+                                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#4B5563" stroke-width="1" />
                             </pattern>
                         </defs>
                         <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
@@ -583,44 +575,44 @@
             try {
                 socket = io();
 
-                socket.on('connect', function() {
+                socket.on('connect', function () {
                 });
 
-                socket.on('disconnect', function() {
+                socket.on('disconnect', function () {
                 });
 
                 // Handle flash progress updates
-                socket.on('flash_progress', function(data) {
+                socket.on('flash_progress', function (data) {
                     updateFlashProgress(data.progress, data.status, data.in_progress);
                 });
 
                 // Handle video frame updates
-                socket.on('video_frame', function(data) {
+                socket.on('video_frame', function (data) {
                     updateVideoFrame(data.frame);
                 });
 
                 // Handle serial data
-                socket.on('serial_data', function(data) {
+                socket.on('serial_data', function (data) {
                     addToSerialTerminal(data.data);
                 });
 
-                socket.on('serial_status', function(data) {
+                socket.on('serial_status', function (data) {
                     updateSerialStatus(data);
                 });
 
                 // Handle logic analyzer data
-                socket.on('logic_analyzer_data', function(data) {
+                socket.on('logic_analyzer_data', function (data) {
                     updateOscilloscopeDisplay(data);
                 });
 
 
 
                 // Test socket connection
-                socket.on('test_event', function(data) {
+                socket.on('test_event', function (data) {
                 });
 
                 // Handle streaming status updates
-                socket.on('streaming_status', function(data) {
+                socket.on('streaming_status', function (data) {
                     if (data.type === 'video') {
                         if (data.status === 'started') {
                             showVideoElement();
@@ -659,19 +651,19 @@
                 });
 
                 // Hub Controls event handlers
-                socket.on('hub_controls_cleared', function(data) {
+                socket.on('hub_controls_cleared', function (data) {
                     // Clear all existing controls from UI
                     clearAllHubControls();
                 });
 
-                socket.on('hub_controls_detected', function(data) {
+                socket.on('hub_controls_detected', function (data) {
                     // Auto-create reader controls for detected values
                     data.values.forEach(valueName => {
                         createHubControlUI(valueName, 'reader');
                     });
                 });
 
-                socket.on('hub_commands_detected', function(data) {
+                socket.on('hub_commands_detected', function (data) {
                     // Update global detected commands
                     window.detectedCommands = new Set(data.commands);
                     // Re-render existing controls to update dropdowns
@@ -682,12 +674,12 @@
                     });
                 });
 
-                socket.on('hub_control_created', function(data) {
+                socket.on('hub_control_created', function (data) {
                     hubControls.push(data.control);
                     renderHubControl(data.control);
                 });
 
-                socket.on('hub_control_updated', function(data) {
+                socket.on('hub_control_updated', function (data) {
                     const existingControl = hubControls.find(c => c.id === data.control.id);
                     if (existingControl) {
                         // Update existing control
@@ -696,15 +688,15 @@
                     updateHubControlUI(data.control);
                 });
 
-                socket.on('hub_control_deleted', function(data) {
+                socket.on('hub_control_deleted', function (data) {
                     removeHubControlUI(data.control.id);
                 });
 
-                socket.on('control_command_sent', function(data) {
+                socket.on('control_command_sent', function (data) {
                     updateControlValueDisplay(data.id, data.value);
                 });
 
-                socket.on('hub_control_error', function(data) {
+                socket.on('hub_control_error', function (data) {
                     console.error('Hub control error:', data.message);
                     alert('Hub Control Error: ' + data.message);
                 });
@@ -793,56 +785,147 @@
                 terminal.appendChild(line);
                 terminal.scrollTop = terminal.scrollHeight;
 
-                // Process the data for value detection
-                const values = Array.from(data.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\s*[=:]\s*([+-]?\d*\.?\d+)/g));
+                // Process the data for value detection using custom formats first
                 let newValueDetected = false;
+                let customValuesProcessed = false;
 
-                for (const match of values) {
-                    const name = match[1];
-                    const value = parseFloat(match[2]);
-
-                    if (!window.serialValuePatterns[name]) {
-                        window.serialValuePatterns[name] = {
-                            lastValue: value,
-                            timestamp: Date.now(),
-                            values: [value],
-                            timestamps: [Date.now()],
-                            maxPoints: 1000
-                        };
-                        newValueDetected = true;
-                    } else {
-                        window.serialValuePatterns[name].lastValue = value;
-                        window.serialValuePatterns[name].timestamp = Date.now();
-                        window.serialValuePatterns[name].values.push(value);
-                        window.serialValuePatterns[name].timestamps.push(Date.now());
-                            
-                        // Maintain buffer size
-                        if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
-                            window.serialValuePatterns[name].values.shift();
-                            window.serialValuePatterns[name].timestamps.shift();
+                // Check if custom formats are set and try to parse using them
+                if (serialPlotData.ch1.customFormat) {
+                    const value = parseValueFromFormat(data, serialPlotData.ch1.customFormat);
+                    if (value !== null) {
+                        const name = 'CH1_Custom';
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000,
+                                isCustom: true
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
                         }
+                        if (serialPlotData.ch1.selectedValue === name) {
+                            serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        customValuesProcessed = true;
                     }
+                }
 
-                    // Update serial plot data if this value is being plotted
-                    if (serialPlotData.ch1.selectedValue === name) {
-                        serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
-                        serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
-                        serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
-                        serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                if (serialPlotData.ch2.customFormat) {
+                    const value = parseValueFromFormat(data, serialPlotData.ch2.customFormat);
+                    if (value !== null) {
+                        const name = 'CH2_Custom';
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000,
+                                isCustom: true
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
+                        }
+                        if (serialPlotData.ch2.selectedValue === name) {
+                            serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        customValuesProcessed = true;
                     }
-                    if (serialPlotData.ch2.selectedValue === name) {
-                        serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
-                        serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
-                        serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
-                        serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                }
+
+                // If custom formats didn't extract values, fall back to auto-detection
+                if (!customValuesProcessed) {
+                    const values = Array.from(data.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\s*[=:]\s*([+-]?\d*\.?\d+)/g));
+
+                    for (const match of values) {
+                        const name = match[1];
+                        const value = parseFloat(match[2]);
+
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+
+                            // Maintain buffer size
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
+                        }
+
+                        // Update serial plot data if this value is being plotted
+                        if (serialPlotData.ch1.selectedValue === name) {
+                            serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        if (serialPlotData.ch2.selectedValue === name) {
+                            serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
                     }
                 }
 
                 // Only update dropdowns if new value type is detected
-                if (newValueDetected) {
+                if (newValueDetected || customValuesProcessed) {
                     updateSerialValues(true);
+
+                    // Auto-create a serial plot slide if this is the first data and no serial slide exists
+                    const hasSerialSlide = slides.some(slide => slide.type === 'serial');
+                    const valueCount = Object.keys(window.serialValuePatterns).length;
+
+                    if (!hasSerialSlide && valueCount >= 1 && totalSlides < 5) {
+                        console.log('[AUTO-CREATE] Creating serial plot slide for detected values');
+                        totalSlides++;
+                        slides.push({
+                            type: 'serial',
+                            name: 'Serial Plot (Auto)'
+                        });
+                        updateSlideCarousel();
+
+                        // Switch to the new serial plot slide
+                        switchToSlide(totalSlides);
+                    }
                 }
-                
+
                 // Update plot if active
                 const currentSlideData = slides[currentSlide - 1];
                 if (currentSlideData && currentSlideData.type === 'serial' && serialPlotData.active) {
@@ -953,7 +1036,7 @@
         function setupFlashButton() {
             const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
             if (flashButton) {
-                flashButton.addEventListener('click', function() {
+                flashButton.addEventListener('click', function () {
                     if (!selectedDevice || !currentFirmware) {
                         alert('Please select a device and upload firmware first');
                         return;
@@ -971,13 +1054,13 @@
                             'chip_type': selectedDevice[3]
                         })
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                    })
-                    .catch(error => {
-                        console.error('Flash error:', error);
-                        alert('Failed to start flashing process');
-                    });
+                        .then(response => response.json())
+                        .then(data => {
+                        })
+                        .catch(error => {
+                            console.error('Flash error:', error);
+                            alert('Failed to start flashing process');
+                        });
                 });
             }
         }
@@ -986,7 +1069,7 @@
         function setupFileUpload() {
             const fileInput = document.getElementById('firmware-upload');
             if (fileInput) {
-                fileInput.addEventListener('change', function(event) {
+                fileInput.addEventListener('change', function (event) {
                     const file = event.target.files[0];
                     if (!file) return;
 
@@ -997,20 +1080,20 @@
                         method: 'POST',
                         body: formData
                     })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            alert('Upload error: ' + data.error);
-                        } else {
-                            currentFirmware = data.filename;
-                            alert('File uploaded successfully!');
-                            updateFlashButtonState();
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Upload error:', error);
-                        alert('Upload failed!');
-                    });
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                alert('Upload error: ' + data.error);
+                            } else {
+                                currentFirmware = data.filename;
+                                alert('File uploaded successfully!');
+                                updateFlashButtonState();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Upload error:', error);
+                            alert('Upload failed!');
+                        });
                 });
             }
         }
@@ -1023,7 +1106,7 @@
             const baudSelect = document.querySelector('select');
 
             if (toggleBtn) {
-                toggleBtn.addEventListener('click', function() {
+                toggleBtn.addEventListener('click', function () {
                     const isConnected = toggleBtn.textContent === 'Disconnect';
 
                     if (isConnected) {
@@ -1055,19 +1138,19 @@
             }
 
             if (sendBtn && commandInput) {
-                sendBtn.addEventListener('click', function() {
+                sendBtn.addEventListener('click', function () {
                     const command = commandInput.value.trim();
                     if (command) {
-                        socket.emit('send_serial_data', {data: command});
+                        socket.emit('send_serial_data', { data: command });
                         commandInput.value = '';
                     }
                 });
 
-                commandInput.addEventListener('keypress', function(e) {
+                commandInput.addEventListener('keypress', function (e) {
                     if (e.key === 'Enter') {
                         const command = commandInput.value.trim();
                         if (command) {
-                            socket.emit('send_serial_data', {data: command});
+                            socket.emit('send_serial_data', { data: command });
                             commandInput.value = '';
                         }
                     }
@@ -1139,9 +1222,9 @@
 
             // Video play button
             if (videoPlayBtn) {
-                videoPlayBtn.addEventListener('click', function() {
+                videoPlayBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('start_streaming', {video: true, audio: false});
+                        socket.emit('start_streaming', { video: true, audio: false });
                         // Show stop button, hide play button
                         toggleVideoButtons(true);
                     } else {
@@ -1152,7 +1235,7 @@
 
             // Video stop button
             if (videoStopBtn) {
-                videoStopBtn.addEventListener('click', function() {
+                videoStopBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
                         socket.emit('stop_streaming');
                         // Show play button, hide stop button
@@ -1165,9 +1248,9 @@
 
             // Audio start button
             if (audioMuteBtn) {
-                audioMuteBtn.addEventListener('click', function() {
+                audioMuteBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('start_streaming', {video: false, audio: true});
+                        socket.emit('start_streaming', { video: false, audio: true });
                         // Show stop button, hide start button
                         toggleAudioButtons(true);
                     } else {
@@ -1178,7 +1261,7 @@
 
             // Audio stop button
             if (audioStopBtn) {
-                audioStopBtn.addEventListener('click', function() {
+                audioStopBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
                         socket.emit('stop_streaming');
                         // Show start button, hide stop button
@@ -1208,11 +1291,10 @@
                 buttonContainer.className = 'relative flex items-center';
 
                 const button = document.createElement('button');
-                button.className = `w-8 h-8 rounded text-sm transition-all duration-200 ${
-                    i === currentSlide
+                button.className = `w-8 h-8 rounded text-sm transition-all duration-200 ${i === currentSlide
                         ? 'bg-blue-500/30 border border-blue-500/50 text-blue-300'
                         : 'bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400'
-                }`;
+                    }`;
                 button.textContent = i;
                 button.onclick = () => switchToSlide(i);
                 buttonContainer.appendChild(button);
@@ -1225,7 +1307,7 @@
                     closeButton.title = 'Remove slide';
                     closeButton.onclick = (e) => {
                         e.stopPropagation(); // Prevent triggering slide switch
-                        if (confirm(`Remove "${slides[i-1].name}" slide?`)) {
+                        if (confirm(`Remove "${slides[i - 1].name}" slide?`)) {
                             removeSlide(i);
                         }
                     };
@@ -1358,71 +1440,103 @@
                 // Serial Plot controls - Top row: dropdowns, Bottom row: scales
                 controlsContainer.className = 'space-y-2 mb-2';
                 controlsContainer.innerHTML = `
-                    <!-- Top Row - Dropdown Controls -->
-                    <div class="flex gap-1">
-                        <!-- Baud Rate Control -->
-                        <div id="baudRateControl" class="p-0.5">
-                            <label class="block text-xs font-medium mb-0.5">Baud-rate</label>
-                            <select class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-                                <option>9600</option>
-                                <option>19200</option>
-                                <option>38400</option>
-                                <option>57600</option>
-                                <option>115200</option>
-                            </select>
-                        </div>
+            <!-- Top Row - Dropdown Controls -->
+            <div class="flex gap-1">
+            <!-- Baud Rate Control -->
+            <div id="baudRateControl" class="p-0.5">
+            <label class="block text-xs font-medium mb-0.5">Baud-rate</label>
+            <select class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+            <option>9600</option>
+            <option>19200</option>
+            <option>38400</option>
+            <option>57600</option>
+            <option>115200</option>
+            </select>
+            </div>
 
-                        <!-- CH1 Value Control -->
-                        <div id="ch1ValueControl" class="p-0.5">
-                            <label class="block text-xs font-medium mb-0.5">CH1-Value</label>
-                            <select id="serialValueSelectCH1" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-                                <option>Loading...</option>
-                            </select>
-                        </div>
+            <!-- CH1 Value Control -->
+            <div id="ch1ValueControl" class="p-0.5">
+            <label class="block text-xs font-medium mb-0.5">CH1-Value</label>
+            <select id="serialValueSelectCH1" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+            <option>Loading...</option>
+            </select>
+            </div>
 
-                        <!-- CH2 Value Control -->
-                        <div id="ch2ValueControl" class="p-0.5">
-                            <label class="block text-xs font-medium mb-0.5">CH2-value</label>
-                            <select id="serialValueSelectCH2" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-                                <option>Loading...</option>
-                            </select>
-                        </div>
-                    </div>
+            <!-- CH2 Value Control -->
+            <div id="ch2ValueControl" class="p-0.5">
+            <label class="block text-xs font-medium mb-0.5">CH2-value</label>
+            <select id="serialValueSelectCH2" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+            <option>Loading...</option>
+            </select>
+            </div>
+            </div>
 
-                    <!-- Bottom Row - Scale Controls -->
-                    <div class="grid grid-cols-2 gap-2">
-                        <!-- Amplitude Control -->
-                        <div id="amplitudeControl" class="p-0">
-                            <label class="block text-xs font-medium mb-0">
-                                Amplitude: 2V/div
-                            </label>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value="25"
-                                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                            />
-                        </div>
+            <!-- Custom Format Row - For manual pattern entry -->
+            <div id="customFormatSection" class="border-t border-white/10 pt-2">
+            <label class="block text-xs font-medium mb-1 text-gray-400">
+                Custom Format (if auto-detect doesn't work)
+            </label>
+            <div class="flex gap-1">
+            <!-- CH1 Custom Format -->
+            <div class="flex-1 min-w-0">
+            <input
+                type="text"
+                id="customFormatCH1"
+                placeholder="e.g., value1 = {value} or {value}RPM"
+                class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
+                />
+                    <div class="text-xs text-gray-500 mt-0.5">CH1 pattern</div>
+                             </div>
+                <!-- CH2 Custom Format -->
+                <div class="flex-1 min-w-0">
+                <input
+                type="text"
+                    id="customFormatCH2"
+                    placeholder="e.g., {value}RPM"
+                class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
+            />
+            <div class="text-xs text-gray-500 mt-0.5">CH2 pattern</div>
+            </div>
+            </div>
+            </div>
 
-                        <!-- Timebase Control -->
-                        <div id="timebaseControl" class="p-0">
-                            <label class="block text-xs font-medium mb-0">
-                                Timebase: 100ms/div
-                            </label>
-                            <input
-                                type="range"
-                                min="0"
-                                max="100"
-                                value="50"
-                                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                            />
-                        </div>
-                    </div>
+            <!-- Bottom Row - Scale Controls -->
+                 <div class="grid grid-cols-2 gap-2">
+                         <!-- Amplitude Control -->
+                     <div id="amplitudeControl" class="p-0">
+                         <label class="block text-xs font-medium mb-0">
+                                 Amplitude: 2V/div
+                             </label>
+                             <input
+                                 type="range"
+                                 min="0"
+                                 max="100"
+                                 value="25"
+                                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                             />
+                         </div>
+
+                         <!-- Timebase Control -->
+                         <div id="timebaseControl" class="p-0">
+                             <label class="block text-xs font-medium mb-0">
+                                 Timebase: 100ms/div
+                             </label>
+                             <input
+                                 type="range"
+                                 min="0"
+                                 max="100"
+                                 value="50"
+                                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                             />
+                         </div>
+                     </div>
                 `;
 
                 // Initialize serial value detection
                 updateSerialValues();
+
+                // Setup custom format handlers
+                setupCustomFormatHandlers();
             }
 
             updateWaveformDisplay();
@@ -1478,35 +1592,36 @@
                     `;
                 }
             } else if (currentSlideData.type === 'serial') {
-                // Serial Plot display
-                if (svgElement) {
-                    // Clear existing paths but keep the grid
-                    svgElement.querySelectorAll('path:not(.grid-pattern)').forEach(path => path.remove());
+            // Serial Plot display
+            if (svgElement) {
+            // Clear existing paths and text labels but keep the grid
+            svgElement.querySelectorAll('path:not(.grid-pattern)').forEach(path => path.remove());
+                     svgElement.querySelectorAll('text').forEach(text => text.remove());
 
-                    // Get SVG dimensions
-                    const rect = svgElement.getBoundingClientRect();
-                    const width = rect.width;
-                    const height = rect.height;
+            // Get SVG dimensions
+            const rect = svgElement.getBoundingClientRect();
+            const width = rect.width;
+                     const height = rect.height;
 
-                    // Draw grid pattern if not exists
-                    if (!svgElement.querySelector('defs')) {
-                        svgElement.innerHTML = `
-                            <defs>
-                                <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
-                                    <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5"/>
-                                </pattern>
-                                <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
-                                    <rect width="100" height="100" fill="url(#smallGrid)" />
-                                    <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#4B5563" stroke-width="1"/>
-                                </pattern>
-                            </defs>
-                            <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
-                        `;
-                    }
+            // Draw grid pattern if not exists
+            if (!svgElement.querySelector('defs')) {
+            svgElement.innerHTML = `
+            <defs>
+            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5"/>
+            </pattern>
+            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+            <rect width="100" height="100" fill="url(#smallGrid)" />
+                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#4B5563" stroke-width="1"/>
+                </pattern>
+            </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
+                `;
+                     }
 
-                    // Draw serial plot for both channels
-                    drawSerialPlot(svgElement, width, height, channelLabels, measurements);
-                }
+            // Draw serial plot for both channels
+                drawSerialPlot(svgElement, width, height, channelLabels, measurements);
+                 }
 
                 if (channelLabels) {
                     channelLabels.innerHTML = `
@@ -1531,6 +1646,57 @@
             }
         }
 
+        // Setup custom format handlers
+        function setupCustomFormatHandlers() {
+            const customFormatCH1 = document.getElementById('customFormatCH1');
+            const customFormatCH2 = document.getElementById('customFormatCH2');
+
+            if (customFormatCH1) {
+                customFormatCH1.addEventListener('change', function () {
+                    if (this.value.trim()) {
+                        const pattern = this.value.trim();
+                        console.log('[CUSTOM FORMAT CH1] Pattern set:', pattern);
+                        // Store pattern in serialPlotData for later use
+                        serialPlotData.ch1.customFormat = pattern;
+                        updateSerialValues(true);
+                    }
+                });
+            }
+
+            if (customFormatCH2) {
+                customFormatCH2.addEventListener('change', function () {
+                    if (this.value.trim()) {
+                        const pattern = this.value.trim();
+                        console.log('[CUSTOM FORMAT CH2] Pattern set:', pattern);
+                        // Store pattern in serialPlotData for later use
+                        serialPlotData.ch2.customFormat = pattern;
+                        updateSerialValues(true);
+                    }
+                });
+            }
+        }
+
+        // Parse value from serial data using custom format
+        function parseValueFromFormat(data, format) {
+            if (!format) return null;
+
+            // Replace {value} with a regex pattern to capture any number
+            const regexPattern = format
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+                .replace(/\\{value\\}/g, '([+-]?\\d*\\.?\\d+)'); // Replace {value} with number capture
+
+            try {
+                const regex = new RegExp(regexPattern);
+                const match = data.match(regex);
+                if (match && match[1]) {
+                    return parseFloat(match[1]);
+                }
+            } catch (e) {
+                console.error('Invalid custom format pattern:', format, e);
+            }
+            return null;
+        }
+
         // Serial value detection for plotting
         function updateSerialValues(forceUpdate = false) {
             const selectElementCH1 = document.getElementById('serialValueSelectCH1');
@@ -1551,7 +1717,7 @@
             // Skip if no changes to available values and all current selections are valid
             if (values.length === selectElementCH1.options.length - 1) {  // -1 for default option
                 const allSelectionsValid = (!currentCH1 || selectElementCH1.querySelector(`option[value="${currentCH1}"]`)) &&
-                                        (!currentCH2 || selectElementCH2.querySelector(`option[value="${currentCH2}"]`));
+                    (!currentCH2 || selectElementCH2.querySelector(`option[value="${currentCH2}"]`));
                 if (allSelectionsValid) {
                     return;
                 }
@@ -1569,13 +1735,13 @@
             selectElementCH2.appendChild(defaultOption.cloneNode(true));
 
             // Add sorted options to dropdowns
-            values.forEach(({name, lastValue}) => {
+            values.forEach(({ name, lastValue }) => {
                 const option = document.createElement('option');
                 option.value = name;
                 option.textContent = `${name} (${lastValue.toFixed(2)})`;
-                
+
                 const option2 = option.cloneNode(true);
-                
+
                 selectElementCH1.appendChild(option);
                 selectElementCH2.appendChild(option2);
             });
@@ -1589,7 +1755,7 @@
             }
 
             // Update value selections on change
-            selectElementCH1.onchange = function() {
+            selectElementCH1.onchange = function () {
                 serialPlotData.ch1.selectedValue = this.value;
                 if (this.value && window.serialValuePatterns[this.value]) {
                     serialPlotData.ch1.values = window.serialValuePatterns[this.value].values;
@@ -1597,7 +1763,7 @@
                 }
             };
 
-            selectElementCH2.onchange = function() {
+            selectElementCH2.onchange = function () {
                 serialPlotData.ch2.selectedValue = this.value;
                 if (this.value && window.serialValuePatterns[this.value]) {
                     serialPlotData.ch2.values = window.serialValuePatterns[this.value].values;
@@ -1613,14 +1779,51 @@
                 }))
                 .sort((a, b) => a.name.localeCompare(b.name));
 
+            // Auto-select first two values if nothing is selected yet
+            if (!currentCH1 && !currentCH2 && values.length >= 2) {
+                // Auto-select first value for CH1
+                serialPlotData.ch1.selectedValue = values[0].name;
+                selectElementCH1.value = values[0].name;
+                serialPlotData.ch1.values = window.serialValuePatterns[values[0].name].values;
+                serialPlotData.ch1.timestamps = window.serialValuePatterns[values[0].name].timestamps;
+
+                // Auto-select second value for CH2
+                serialPlotData.ch2.selectedValue = values[1].name;
+                selectElementCH2.value = values[1].name;
+                serialPlotData.ch2.values = window.serialValuePatterns[values[1].name].values;
+                serialPlotData.ch2.timestamps = window.serialValuePatterns[values[1].name].timestamps;
+
+                console.log(`[AUTO-SELECT] CH1: ${values[0].name}, CH2: ${values[1].name}`);
+            } else if (!currentCH1 && values.length >= 1) {
+                // Auto-select first value for CH1 if only CH1 is empty
+                serialPlotData.ch1.selectedValue = values[0].name;
+                selectElementCH1.value = values[0].name;
+                serialPlotData.ch1.values = window.serialValuePatterns[values[0].name].values;
+                serialPlotData.ch1.timestamps = window.serialValuePatterns[values[0].name].timestamps;
+
+                console.log(`[AUTO-SELECT] CH1: ${values[0].name}`);
+            } else if (!currentCH2 && values.length >= 2) {
+                // Auto-select second value for CH2 if only CH2 is empty and we have at least 2 values
+                // Find the first value that's not selected in CH1
+                const ch2Value = values.find(v => v.name !== currentCH1);
+                if (ch2Value) {
+                    serialPlotData.ch2.selectedValue = ch2Value.name;
+                    selectElementCH2.value = ch2Value.name;
+                    serialPlotData.ch2.values = window.serialValuePatterns[ch2Value.name].values;
+                    serialPlotData.ch2.timestamps = window.serialValuePatterns[ch2Value.name].timestamps;
+
+                    console.log(`[AUTO-SELECT] CH2: ${ch2Value.name}`);
+                }
+            }
+
             // Update both dropdowns
             [
-                {select: selectElementCH1, current: currentCH1, channel: 'ch1'},
-                {select: selectElementCH2, current: currentCH2, channel: 'ch2'}
-            ].forEach(({select, current, channel}) => {
+                { select: selectElementCH1, current: currentCH1, channel: 'ch1' },
+                { select: selectElementCH2, current: currentCH2, channel: 'ch2' }
+            ].forEach(({ select, current, channel }) => {
                 // Clear dropdown
                 select.innerHTML = '';
-                
+
                 // Add default option
                 const defaultOption = document.createElement('option');
                 defaultOption.value = '';
@@ -1628,7 +1831,7 @@
                 select.appendChild(defaultOption);
 
                 // Add all available values
-                availableValues.forEach(({name, lastValue}) => {
+                availableValues.forEach(({ name, lastValue }) => {
                     const option = document.createElement('option');
                     option.value = name;
                     option.textContent = `${name} (${lastValue.toFixed(2)})`;
@@ -1653,29 +1856,31 @@
 
         // Serial plot buffers with value tracking
         window.serialPlotData = {
-            ch1: {
-                values: [],
-                timestamps: [],
-                selectedValue: null,
-                maxPoints: 1000,  // Maximum points to store
-                minValue: Infinity,
-                maxValue: -Infinity,
-                scale: 1.0
-            },
-            ch2: {
-                values: [],
-                timestamps: [],
-                selectedValue: null,
-                maxPoints: 1000,
-                minValue: Infinity,
-                maxValue: -Infinity,
-                scale: 1.0
-            },
-            plotTimespan: 10000,  // 10 seconds default timespan
-            lastUpdate: 0,
+        ch1: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,  // Maximum points to store
+        minValue: Infinity,
+        maxValue: -Infinity,
+            scale: 1.0
+        },
+        ch2: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,
+        minValue: Infinity,
+            maxValue: -Infinity,
+            scale: 1.0
+        },
+        plotTimespan: 10000,  // 10 seconds default timespan
+        lastUpdate: 0,
             active: false,        // Flag to control plotting
-            updateInterval: null  // Store interval ID for updates
-        };
+             updateInterval: null  // Store interval ID for updates
+         };
 
         // Hub Controls Functions
         function createHubControlUI(valueName, controlType) {
@@ -1684,7 +1889,7 @@
                 return;
             }
 
-            socket.emit('create_hub_control', {name: valueName, type: controlType});
+            socket.emit('create_hub_control', { name: valueName, type: controlType });
         }
 
         function renderHubControl(control) {
@@ -1883,15 +2088,15 @@
                             <!-- Command Template with confirmation -->
                             <div class="mt-3 pt-3 border-t border-white/10">
                                 <label class="block text-xs font-medium mb-1 text-gray-400">
-                                    Read Command
+                                    Read Command Pattern
                                 </label>
                                 <div class="flex space-x-2">
                                     <input
                                         type="text"
                                         id="cmd-${control.id}"
-                                        value="${control.config.command_template || `${control.name}?`}"
+                                        value="${control.config.command_template || '{value}RPM'}"
                                         class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors"
-                                        placeholder="e.g., get_temp"
+                                        placeholder="e.g., {value}RPM"
                                     >
                                     <button
                                         onclick="confirmReaderCommand('${control.id}')"
@@ -1913,6 +2118,18 @@
                 staticControls[0].insertAdjacentHTML('beforebegin', controlElement);
             } else {
                 controlsContainer.insertAdjacentHTML('afterbegin', controlElement);
+            }
+
+            // If this is a reader control, auto-focus its command input so the user can
+            // immediately paste/type the read pattern and confirm.
+            if (control.type === 'reader') {
+                setTimeout(() => {
+                    const cmdInput = document.getElementById(`cmd-${control.id}`);
+                    if (cmdInput) {
+                        cmdInput.focus();
+                        cmdInput.select();
+                    }
+                }, 100);
             }
         }
 
@@ -1965,7 +2182,7 @@
                 return;
             }
 
-            socket.emit('send_control_command', {id: controlId, value: value});
+            socket.emit('send_control_command', { id: controlId, value: value });
         }
 
         function sendToggleCommand(controlId, isChecked) {
@@ -1980,7 +2197,7 @@
             const valueOptions = control.config.value_options || ['0', '1'];
             const value = isChecked ? valueOptions[1] : valueOptions[0];
 
-            socket.emit('send_control_command', {id: controlId, value: value});
+            socket.emit('send_control_command', { id: controlId, value: value });
         }
 
         function updateControlValueDisplay(controlId, value) {
@@ -1996,22 +2213,56 @@
             const control = hubControls.find(c => c.id === controlId);
             if (!control) return;
 
-            const updateData = {id: controlId, config: {}};
+            const updateData = { id: controlId, config: {} };
             updateData.config[type] = parseFloat(value) || 0;
 
             socket.emit('update_hub_control', updateData);
         }
 
         function updateControlCommand(controlId, commandName, isReader = false) {
-            if (!socket || !socket.connected) return;
+            if (!socket || !socket.connected) {
+                console.warn('Socket not connected - will still attempt REST update');
+            }
 
             const control = hubControls.find(c => c.id === controlId);
-            if (!control) return;
+            if (!control) {
+                console.warn('Control not found locally for update:', controlId);
+            }
 
-            const updateData = {id: controlId, config: {}};
-            updateData.config['command_template'] = isReader ? commandName : `${commandName}={value}`;
+            // For reader controls, ensure we don't modify the value format if it contains {value}
+            let template = commandName;
+            if (!isReader && !commandName.includes('{value}')) {
+                template = `${commandName}={value}`;
+            }
 
-            socket.emit('update_hub_control', updateData);
+            const updateData = { id: controlId, config: {} };
+            updateData.config['command_template'] = template;
+
+            // Emit via SocketIO if available
+            try {
+                if (socket && socket.connected) {
+                    socket.emit('update_hub_control', updateData);
+                    console.log('Sent update_hub_control via socket:', updateData);
+                }
+            } catch (e) {
+                console.warn('Socket emit failed, will try REST fallback', e);
+            }
+
+            // Also send a REST fallback to ensure backend receives the update
+            fetch(`/hub/controls/${controlId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: { command_template: template } })
+            }).then(resp => {
+                if (!resp.ok) {
+                    return resp.text().then(t => { throw new Error(t || resp.statusText); });
+                }
+                return resp.json();
+            }).then(json => {
+                console.log('REST update_hub_control response:', json);
+            }).catch(err => {
+                console.warn('REST fallback failed to update control:', err);
+            });
         }
 
         function confirmReaderCommand(controlId) {
@@ -2020,14 +2271,21 @@
 
             const command = commandInput.value.trim();
             if (!command) {
-                alert('Please enter a read command');
+                alert('Please enter a read command pattern');
+                return;
+            }
+
+            // Validate that the command includes {value}
+            if (!command.includes('{value}')) {
+                alert('Command pattern must include {value} placeholder');
                 return;
             }
 
             // Update the command template
+            console.log('Confirming reader command for', controlId, command);
             updateControlCommand(controlId, command, true);
 
-            // Visual feedback
+            // Also mark the input visually as saved (optimistic)
             const button = commandInput.nextElementSibling;
             if (button) {
                 const originalBg = button.className;
@@ -2099,7 +2357,7 @@
             }
             control.config.value_options[index] = value;
 
-            const updateData = {id: controlId, config: {}};
+            const updateData = { id: controlId, config: {} };
             updateData.config['value_options'] = control.config.value_options;
 
             socket.emit('update_hub_control', updateData);
@@ -2130,7 +2388,7 @@
             }
 
             // Send update to server
-            const updateData = {id: controlId, config: {}};
+            const updateData = { id: controlId, config: {} };
             updateData.config[type] = parseFloat(value) || 0;
 
             socket.emit('update_hub_control', updateData);
@@ -2149,7 +2407,7 @@
             }
 
             if (confirm('Are you sure you want to delete this control?')) {
-                socket.emit('delete_hub_control', {id: controlId});
+                socket.emit('delete_hub_control', { id: controlId });
             }
         }
 
@@ -2157,7 +2415,7 @@
             // Add Control button
             const addControlBtn = document.querySelector('.bg-purple-500\\/20');
             if (addControlBtn) {
-                addControlBtn.addEventListener('click', function() {
+                addControlBtn.addEventListener('click', function () {
                     showAddControlModal();
                 });
             }
@@ -2228,45 +2486,10 @@
                             </div>
                         </div>
 
-                        <!-- Reader Format Options -->
-                        <div id="readerFormatOptions" class="hidden space-y-3 p-3 bg-black/20 rounded-lg border border-white/10">
-                            <div>
-                                <label class="block text-sm font-medium mb-2 text-gray-300">
-                                    Value Format
-                                </label>
-                                <div class="grid grid-cols-2 gap-2">
-                                    <button
-                                        onclick="selectReaderFormat('auto')"
-                                        class="reader-format-btn bg-black/30 border border-white/20 rounded px-3 py-2 text-sm hover:border-blue-400 transition-colors"
-                                        data-format="auto"
-                                    >
-                                        Auto Detect
-                                    </button>
-                                    <button
-                                        onclick="selectReaderFormat('custom')"
-                                        class="reader-format-btn bg-black/30 border border-white/20 rounded px-3 py-2 text-sm hover:border-blue-400 transition-colors"
-                                        data-format="custom"
-                                    >
-                                        Custom Format
-                                    </button>
-                                </div>
-                            </div>
-
-                            <div id="customFormatInput" class="hidden space-y-2">
-                                <label class="block text-sm font-medium mb-1 text-gray-400">
-                                    Custom Format Pattern
-                                </label>
-                                <input
-                                    type="text"
-                                    id="customFormatPattern"
-                                    placeholder="Example: {value}RPM or value1={value}"
-                                    class="w-full bg-black/30 border border-white/20 rounded px-3 py-2 text-sm focus:border-blue-400 focus:outline-none transition-colors"
-                                />
-                                <p class="text-xs text-gray-500">
-                                    Use {value} to mark where the numeric value appears in your text.
-                                </p>
-                            </div>
-                        </div>
+                        <!-- Note: Reader-specific format selection removed.
+                             Readers can be created immediately and the command/template
+                             can be edited on the created control's UI (cmd-<id> input).
+                        -->
                     </div>
 
                     <div class="flex justify-end space-x-3 mt-6">
@@ -2314,18 +2537,9 @@
             // Store selected type
             window.selectedControlType = type;
 
-            // Show/hide reader format options
-            const readerFormatOptions = document.getElementById('readerFormatOptions');
-            if (readerFormatOptions) {
-                readerFormatOptions.style.display = type === 'reader' ? 'block' : 'none';
-                
-                // Reset format selection when switching to reader
-                if (type === 'reader') {
-                    selectReaderFormat('auto');
-                } else {
-                    window.selectedReaderFormat = null;
-                }
-            }
+            // No pre-add reader format selection anymore. Readers are created immediately
+            // and the command template can be edited after creation via the control UI.
+            window.selectedReaderFormat = null;
 
             // Enable create button if name is entered
             updateCreateButtonState();
@@ -2336,58 +2550,24 @@
             const createBtn = document.getElementById('createControlBtn');
             const name = nameInput ? nameInput.value.trim() : '';
             const typeSelected = window.selectedControlType;
-            
-            let isValid = name && typeSelected;
-            
-            // Additional validation for reader type
-            if (isValid && typeSelected === 'reader') {
-                const readerFormat = window.selectedReaderFormat;
-                if (!readerFormat) {
-                    isValid = false;
-                } else if (readerFormat === 'custom') {
-                    const patternInput = document.getElementById('customFormatPattern');
-                    const pattern = patternInput ? patternInput.value.trim() : '';
-                    isValid = pattern && pattern.includes('{value}');
-                }
-            }
+
+            // Basic validation: name and type required. Reader formats are configured
+            // after creation via the control's command input so no extra validation
+            // is required here.
+            const isValid = Boolean(name && typeSelected);
 
             if (createBtn) {
                 createBtn.disabled = !isValid;
             }
         }
 
-        function selectReaderFormat(format) {
-            // Remove previous selection
-            document.querySelectorAll('.reader-format-btn').forEach(btn => {
-                btn.classList.remove('border-blue-400', 'bg-blue-500/20');
-                btn.classList.add('border-white/20', 'bg-black/30');
-            });
-
-            // Add selection to clicked button
-            const selectedBtn = document.querySelector(`[data-format="${format}"]`);
-            if (selectedBtn) {
-                selectedBtn.classList.remove('border-white/20', 'bg-black/30');
-                selectedBtn.classList.add('border-blue-400', 'bg-blue-500/20');
-            }
-
-            // Store selected format
-            window.selectedReaderFormat = format;
-
-            // Show/hide custom format input
-            const customFormatInput = document.getElementById('customFormatInput');
-            if (customFormatInput) {
-                customFormatInput.style.display = format === 'custom' ? 'block' : 'none';
-            }
-
-            // Update create button state
-            updateCreateButtonState();
-        }
+        // Reader pre-add format selection removed; readers are created immediately
+        // and configured after creation using the control UI inputs.
 
         function createControlFromModal() {
             const nameInput = document.getElementById('controlNameInput');
             const controlName = nameInput ? nameInput.value.trim() : '';
             const controlType = window.selectedControlType;
-            const readerFormat = window.selectedReaderFormat;
 
             if (!controlName || !controlType) {
                 return;
@@ -2403,27 +2583,12 @@
                 return;
             }
 
-            // Get custom format pattern if applicable
-            let customPattern = null;
-            if (controlType === 'reader' && readerFormat === 'custom') {
-                const patternInput = document.getElementById('customFormatPattern');
-                if (patternInput) {
-                    customPattern = patternInput.value.trim();
-                    if (!customPattern || !customPattern.includes('{value}')) {
-                        alert('Please enter a valid custom format pattern that includes {value}');
-                        return;
-                    }
-                }
-            }
-
             // Close modal
             closeAddControlModal();
 
-            // Create control with type and format
-            createHubControlUI(controlName, controlType, {
-                readerFormat: readerFormat,
-                customPattern: customPattern
-            });
+            // Create control with type. Reader-specific format/command can be
+            // configured after the control is created using its UI.
+            createHubControlUI(controlName, controlType);
         }
 
         function closeAddControlModal() {
@@ -2435,7 +2600,7 @@
         }
 
         // Listen for Enter key in modal
-        document.addEventListener('keydown', function(e) {
+        document.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') {
                 const modal = document.querySelector('.fixed.inset-0.bg-black\\/50');
                 if (modal) {
@@ -2450,7 +2615,7 @@
         });
 
         // Update create button state when typing
-        document.addEventListener('input', function(e) {
+        document.addEventListener('input', function (e) {
             if (e.target.id === 'controlNameInput') {
                 updateCreateButtonState();
             }
@@ -2464,7 +2629,7 @@
 
             // Start button
             if (startBtn) {
-                startBtn.addEventListener('click', function() {
+                startBtn.addEventListener('click', function () {
                     if (!socket || !socket.connected) {
                         alert('Not connected to server');
                         return;
@@ -2491,17 +2656,21 @@
                             });
                     } else if (currentSlideData.type === 'serial') {
                         // Start Serial Plot
-                        if (!serialPlotData.ch1.selectedValue && !serialPlotData.ch2.selectedValue) {
-                            alert('Please select at least one value to plot');
+                        const hasCH1 = serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat;
+                        const hasCH2 = serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat;
+                        
+                        if (!hasCH1 && !hasCH2) {
+                            alert('Please select at least one value to plot or enter a custom format');
                             return;
                         }
 
-                        // Clear existing data
+                        // Clear existing data but preserve selectedValue and customFormat
                         ['ch1', 'ch2'].forEach(channel => {
                             serialPlotData[channel] = {
                                 values: [],
                                 timestamps: [],
                                 selectedValue: serialPlotData[channel].selectedValue,
+                                customFormat: serialPlotData[channel].customFormat,
                                 maxPoints: serialPlotData[channel].maxPoints,
                                 minValue: Infinity,
                                 maxValue: -Infinity,
@@ -2528,7 +2697,7 @@
 
             // Stop button
             if (stopBtn) {
-                stopBtn.addEventListener('click', function() {
+                stopBtn.addEventListener('click', function () {
                     if (!socket || !socket.connected) {
                         alert('Not connected to server');
                         return;
@@ -2568,7 +2737,7 @@
 
             // Clear button
             if (clearBtn) {
-                clearBtn.addEventListener('click', function() {
+                clearBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
                         fetch('/logic/clear', { method: 'POST' })
                             .then(response => response.json())
@@ -2593,7 +2762,7 @@
             // Timebase control
             const timebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
             if (timebaseSlider) {
-                timebaseSlider.addEventListener('input', function() {
+                timebaseSlider.addEventListener('input', function () {
                     const timebaseValue = this.value;
                     // Convert slider value to timebase (0.001 to 10 seconds)
                     const timebase = Math.pow(10, (timebaseValue - 50) / 25); // Exponential scale
@@ -2612,7 +2781,7 @@
             // Amplitude control
             const amplitudeSlider = document.querySelector('#amplitudeControl input[type="range"]');
             if (amplitudeSlider) {
-                amplitudeSlider.addEventListener('input', function() {
+                amplitudeSlider.addEventListener('input', function () {
                     const amplitudeValue = this.value;
                     // Convert slider value to amplitude scale (0.1 to 10)
                     const amplitudeScale = Math.pow(10, (amplitudeValue - 50) / 25);
@@ -2631,7 +2800,7 @@
             // Channel selection
             const channelSelect = document.querySelector('#gpioChannelControl select');
             if (channelSelect) {
-                channelSelect.addEventListener('change', function() {
+                channelSelect.addEventListener('change', function () {
                     const channelMode = this.value.toLowerCase(); // 'channel 1', 'channel 2', 'both' -> 'ch1', 'ch2', 'both'
 
                     let mode = 'both';
@@ -2652,10 +2821,10 @@
             const setupSerialValueSelect = (channelId) => {
                 const select = document.getElementById(`serialValueSelectCH${channelId}`);
                 if (select) {
-                    select.addEventListener('change', function() {
+                    select.addEventListener('change', function () {
                         const selectedValue = this.value;
                         const channel = `ch${channelId}`;
-                        
+
                         // Reset channel data when changing selected value
                         serialPlotData[channel] = {
                             values: [],
@@ -2831,78 +3000,108 @@
             }
         }
 
-            function drawSerialPlot(svgElement, width, height, channelLabels, measurements) {
-                // Draw serial plot for both channels if they have data
-                const drawChannel = (channel, color, yOffset) => {
-                    const data = serialPlotData[channel];
-                    if (!data.selectedValue || !data.values || data.values.length === 0) return null;
+        function drawSerialPlot(svgElement, width, height, channelLabels, measurements) {
+        // Draw serial plot for both channels if they have data
+        const drawChannel = (channel, color, yOffset) => {
+        const data = serialPlotData[channel];
+        // Allow drawing if selectedValue is set OR if using customFormat with data
+                 const hasSelection = data.selectedValue || (data.customFormat && data.values && data.values.length > 0);
+                 if (!hasSelection || !data.values || data.values.length === 0) return null;
 
-                    // Calculate time range for x-axis
-                    const timeRange = Math.min(
-                        serialPlotData.plotTimespan,
-                        data.timestamps[data.timestamps.length - 1] - data.timestamps[0]
-                    );
-                    const startTime = data.timestamps[data.timestamps.length - 1] - timeRange;
+                // Calculate time range for x-axis
+                const timeRange = Math.min(
+                    serialPlotData.plotTimespan,
+                    data.timestamps[data.timestamps.length - 1] - data.timestamps[0]
+                );
+                const startTime = data.timestamps[data.timestamps.length - 1] - timeRange;
+
+                // Filter data points within the time window
+                const validPoints = data.values.map((v, i) => ({
+                    value: v,
+                    timestamp: data.timestamps[i]
+                })).filter(p => p.timestamp >= startTime);
+
+                if (validPoints.length === 0) return null;
+
+                // Calculate scales with dynamic range
+                const xScale = width / timeRange;
+                const range = data.maxValue - data.minValue;
+                const padding = range * 0.1; // 10% padding
+                const yMin = data.minValue - padding;
+                const yMax = data.maxValue + padding;
+                const yScale = (height / 2) / (yMax - yMin);
+
+                // Create SVG path
+                let pathData = '';
+                validPoints.forEach((point, i) => {
+                    const x = (point.timestamp - startTime) * xScale;
+                    const y = height / 2 - ((point.value - yMin) * yScale);
+                    pathData += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
+                });
+
+                // Create and append path element
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', color);
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('vector-effect', 'non-scaling-stroke');
+                svgElement.appendChild(path);
+
+                // Draw value scale labels on the appropriate side
+                // CH1 (green) on left, CH2 (blue) on right
+                const scaleSteps = 5; // Number of scale divisions
+                const textMargin = 20; // Margin to prevent text clipping
+                const isLeftSide = channel === 'ch1'; // CH1 on left, CH2 on right
+                
+                for (let i = 0; i <= scaleSteps; i++) {
+                    const value = yMin + (yMax - yMin) * (i / scaleSteps);
+                    const y = height / 2 - ((value - yMin) * yScale);
                     
-                    // Filter data points within the time window
-                    const validPoints = data.values.map((v, i) => ({
-                        value: v,
-                        timestamp: data.timestamps[i]
-                    })).filter(p => p.timestamp >= startTime);
+                    // Clamp y position to prevent text from going outside SVG bounds
+                    const clampedY = Math.max(12, Math.min(height - 2, y + 4));
+                    
+                    const scaleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    scaleText.setAttribute('x', isLeftSide ? textMargin : width - textMargin);
+                    scaleText.setAttribute('y', clampedY);
+                    scaleText.setAttribute('font-size', '11');
+                    scaleText.setAttribute('font-weight', '500');
+                    scaleText.setAttribute('fill', color);
+                    scaleText.setAttribute('opacity', '0.8');
+                    scaleText.setAttribute('text-anchor', isLeftSide ? 'start' : 'end');
+                    scaleText.setAttribute('dominant-baseline', 'middle');
+                    scaleText.textContent = value.toFixed(1);
+                    svgElement.appendChild(scaleText);
+                }
 
-                    if (validPoints.length === 0) return null;
-
-                    // Calculate scales
-                    const xScale = width / timeRange;
-                    const range = data.maxValue - data.minValue;
-                    const padding = range * 0.1; // 10% padding
-                    const yMin = data.minValue - padding;
-                    const yMax = data.maxValue + padding;
-                    const yScale = (height / 2) / (yMax - yMin);
-
-                    // Create SVG path
-                    let pathData = '';
-                    validPoints.forEach((point, i) => {
-                        const x = (point.timestamp - startTime) * xScale;
-                        const y = height/2 - ((point.value - yMin) * yScale);
-                        pathData += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
-                    });
-
-                    // Create and append path element
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    path.setAttribute('d', pathData);
-                    path.setAttribute('fill', 'none');
-                    path.setAttribute('stroke', color);
-                    path.setAttribute('stroke-width', '2');
-                    path.setAttribute('vector-effect', 'non-scaling-stroke');
-                    svgElement.appendChild(path);
-
-                    return {
-                        name: data.selectedValue,
-                        min: data.minValue.toFixed(2),
-                        max: data.maxValue.toFixed(2),
-                        current: validPoints[validPoints.length - 1].value.toFixed(2)
-                    };
-                };            // Draw both channels
+                return {
+                    name: data.selectedValue || (data.customFormat ? `${channel.toUpperCase()}_Custom` : 'Unknown'),
+                    min: data.minValue.toFixed(2),
+                    max: data.maxValue.toFixed(2),
+                    current: validPoints[validPoints.length - 1].value.toFixed(2),
+                    yMin: yMin.toFixed(2),
+                    yMax: yMax.toFixed(2)
+                };
+            };            // Draw both channels
             const ch1Info = drawChannel('ch1', '#10B981', 0);
-            const ch2Info = drawChannel('ch2', '#3B82F6', height/2);
+            const ch2Info = drawChannel('ch2', '#3B82F6', height / 2);
 
             // Update channel labels
             if (channelLabels) {
                 channelLabels.innerHTML = '';
-                
+
                 // Always show placeholders for both channels
                 channelLabels.innerHTML = `
                     <div class="flex items-center space-x-2">
                         <div class="w-3 h-3 ${ch1Info ? 'bg-green-400' : 'bg-gray-400'} rounded-full"></div>
                         <span class="text-xs ${ch1Info ? 'text-green-400' : 'text-gray-400'}">
-                            ${ch1Info ? ch1Info.name : 'CH1 (No Data)'}
+                            ${ch1Info ? ch1Info.name + ' (Left CH1)' : 'CH1 (No Data)'}
                         </span>
                     </div>
                     <div class="flex items-center space-x-2">
                         <div class="w-3 h-3 ${ch2Info ? 'bg-blue-400' : 'bg-gray-400'} rounded-full"></div>
                         <span class="text-xs ${ch2Info ? 'text-blue-400' : 'text-gray-400'}">
-                            ${ch2Info ? ch2Info.name : 'CH2 (No Data)'}
+                            ${ch2Info ? ch2Info.name + ' (Right CH2)' : 'CH2 (No Data)'}
                         </span>
                     </div>
                 `;
@@ -2911,31 +3110,35 @@
             // Update measurements
             if (measurements) {
                 measurements.innerHTML = '';
-                
+
                 // CH1 Measurements
                 if (ch1Info) {
-                    measurements.innerHTML += `
-                        <div class="text-green-400">${ch1Info.name}: ${ch1Info.current}</div>
-                        <div class="text-green-300">Range: ${ch1Info.min} - ${ch1Info.max}</div>
+                measurements.innerHTML += `
+                <div class="text-green-400">${ch1Info.name}: ${ch1Info.current}</div>
+                <div class="text-green-300">Range: ${ch1Info.min} - ${ch1Info.max}</div>
+                <div class="text-green-300">Scale: ${ch1Info.yMin} - ${ch1Info.yMax}</div>
+                `;
+                } else if (serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat) {
+                const label = serialPlotData.ch1.selectedValue || 'CH1_Custom';
+                measurements.innerHTML += `
+                    <div class="text-gray-400">${label}: No Data</div>
                     `;
-                } else if (serialPlotData.ch1.selectedValue) {
-                    measurements.innerHTML += `
-                        <div class="text-gray-400">${serialPlotData.ch1.selectedValue}: No Data</div>
-                    `;
-                }
-                
+                 }
+
                 // CH2 Measurements
                 if (ch2Info) {
-                    measurements.innerHTML += `
-                        <div class="text-blue-400">${ch2Info.name}: ${ch2Info.current}</div>
-                        <div class="text-blue-300">Range: ${ch2Info.min} - ${ch2Info.max}</div>
+                measurements.innerHTML += `
+                <div class="text-blue-400">${ch2Info.name}: ${ch2Info.current}</div>
+                    <div class="text-blue-300">Range: ${ch2Info.min} - ${ch2Info.max}</div>
+                    <div class="text-blue-300">Scale: ${ch2Info.yMin} - ${ch2Info.yMax}</div>
                     `;
-                } else if (serialPlotData.ch2.selectedValue) {
-                    measurements.innerHTML += `
-                        <div class="text-gray-400">${serialPlotData.ch2.selectedValue}: No Data</div>
-                    `;
+                } else if (serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat) {
+                const label = serialPlotData.ch2.selectedValue || 'CH2_Custom';
+                measurements.innerHTML += `
+                         <div class="text-gray-400">${label}: No Data</div>
+                     `;
                 }
-                
+
                 // Sample rate info
                 const sampleRate = Math.round(1000 / (serialPlotData.plotTimespan / 1000)); // samples per second
                 measurements.innerHTML += `
@@ -2945,7 +3148,7 @@
         }
 
         // Initialize when page loads
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             initSocket();
             setupFlashButton();
             setupFileUpload();
@@ -2958,4 +3161,5 @@
         });
     </script>
 </body>
+
 </html>
