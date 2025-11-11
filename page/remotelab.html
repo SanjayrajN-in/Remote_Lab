@@ -789,7 +789,52 @@
                 let newValueDetected = false;
                 let customValuesProcessed = false;
 
-                // Check if custom formats are set and try to parse using them
+                // Check if custom patterns are set and try to parse using them
+                if (window.customPatterns && window.customPatterns.length > 0) {
+                    window.customPatterns.forEach((patternData, idx) => {
+                        if (!patternData.value) return; // Skip empty patterns
+                        const value = parseValueFromFormat(data, patternData.value);
+                        if (value !== null) {
+                            const name = `Pattern${idx + 1}`;
+                            if (!window.serialValuePatterns[name]) {
+                                window.serialValuePatterns[name] = {
+                                    lastValue: value,
+                                    timestamp: Date.now(),
+                                    values: [value],
+                                    timestamps: [Date.now()],
+                                    maxPoints: 1000,
+                                    isCustom: true,
+                                    pattern: patternData.value
+                                };
+                                newValueDetected = true;
+                            } else {
+                                window.serialValuePatterns[name].lastValue = value;
+                                window.serialValuePatterns[name].timestamp = Date.now();
+                                window.serialValuePatterns[name].values.push(value);
+                                window.serialValuePatterns[name].timestamps.push(Date.now());
+                                if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                    window.serialValuePatterns[name].values.shift();
+                                    window.serialValuePatterns[name].timestamps.shift();
+                                }
+                            }
+                            if (serialPlotData.ch1.selectedValue === name) {
+                                serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                                serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                                serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                                serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                            }
+                            if (serialPlotData.ch2.selectedValue === name) {
+                                serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                                serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                                serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                                serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                            }
+                            customValuesProcessed = true;
+                        }
+                    });
+                }
+
+                // Support legacy customFormat field
                 if (serialPlotData.ch1.customFormat) {
                     const value = parseValueFromFormat(data, serialPlotData.ch1.customFormat);
                     if (value !== null) {
@@ -824,6 +869,7 @@
                     }
                 }
 
+                // Support legacy customFormat field
                 if (serialPlotData.ch2.customFormat) {
                     const value = parseValueFromFormat(data, serialPlotData.ch2.customFormat);
                     if (value !== null) {
@@ -1473,32 +1519,34 @@
 
             <!-- Custom Format Row - For manual pattern entry -->
             <div id="customFormatSection" class="border-t border-white/10 pt-2">
-            <label class="block text-xs font-medium mb-1 text-gray-400">
-                Custom Format (if auto-detect doesn't work)
-            </label>
+            <div class="flex justify-between items-center mb-2">
+                <label class="text-xs font-medium text-gray-400">
+                    Add Custom Pattern
+                </label>
+            </div>
+            
+            <!-- Pattern Input -->
             <div class="flex gap-1">
-            <!-- CH1 Custom Format -->
-            <div class="flex-1 min-w-0">
             <input
-                type="text"
-                id="customFormatCH1"
-                placeholder="e.g., value1 = {value} or {value}RPM"
-                class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
-                />
-                    <div class="text-xs text-gray-500 mt-0.5">CH1 pattern</div>
-                             </div>
-                <!-- CH2 Custom Format -->
-                <div class="flex-1 min-w-0">
-                <input
-                type="text"
-                    id="customFormatCH2"
-                    placeholder="e.g., {value}RPM"
-                class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
+            type="text"
+            id="patternInput"
+            placeholder="e.g., {value}RPM or temp: {value}°C"
+            class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
             />
-            <div class="text-xs text-gray-500 mt-0.5">CH2 pattern</div>
+            <button id="addPatternBtn" class="text-xs bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 transition-all duration-200">
+            <span>+</span>
+            </button>
             </div>
-            </div>
-            </div>
+            <div class="text-xs text-gray-500 mt-0.5">Patterns appear in Value dropdowns below</div>
+            
+             <!-- Custom Patterns List - For removing patterns -->
+             <div id="customPatternsList" class="mt-2 pt-2 border-t border-white/10">
+                 <div class="text-xs font-medium text-gray-400 mb-1">Saved Patterns:</div>
+                 <div id="patternsContainer" class="flex flex-wrap gap-2">
+                     <div class="text-xs text-gray-500 italic">No custom patterns yet</div>
+                 </div>
+             </div>
+             </div>
 
             <!-- Bottom Row - Scale Controls -->
                  <div class="grid grid-cols-1 gap-2">
@@ -1645,34 +1693,101 @@
             }
         }
 
-        // Setup custom format handlers
+        // Update the custom patterns list display
+        function updateCustomPatternsList() {
+            const container = document.getElementById('patternsContainer');
+            if (!container) return;
+
+            if (!window.customPatterns || window.customPatterns.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-500 italic">No custom patterns yet</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            window.customPatterns.forEach((patternData, idx) => {
+                const patternName = `Pattern${idx + 1}`;
+                const patternValue = patternData.value;
+                
+                const patternItem = document.createElement('div');
+                patternItem.className = 'flex items-center gap-1 bg-white/5 rounded px-2 py-1 border border-white/10 whitespace-nowrap';
+                patternItem.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="text-xs font-medium text-blue-300">${patternName}</div>
+                        <div class="text-xs text-gray-400 truncate max-w-[120px]">${patternValue}</div>
+                    </div>
+                    <button class="text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-1.5 py-0.5 transition-all duration-200 remove-pattern-btn flex-shrink-0" data-pattern-index="${idx}" title="Remove pattern">
+                        ✕
+                    </button>
+                `;
+                container.appendChild(patternItem);
+            });
+
+            // Attach remove event listeners
+            document.querySelectorAll('.remove-pattern-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.getAttribute('data-pattern-index'));
+                    const patternName = `Pattern${idx + 1}`;
+                    const confirmed = confirm(`Remove pattern "${patternName}"?`);
+                    if (confirmed) {
+                        window.customPatterns.splice(idx, 1);
+                        delete window.serialValuePatterns[patternName];
+                        console.log('[PATTERN REMOVED]:', patternName);
+                        updateCustomPatternsList();
+                        updateSerialValues(true);
+                    }
+                });
+            });
+        }
+
+        // Setup custom format handlers with unified pattern support
         function setupCustomFormatHandlers() {
-            const customFormatCH1 = document.getElementById('customFormatCH1');
-            const customFormatCH2 = document.getElementById('customFormatCH2');
+            // Initialize global patterns array if not exists
+            if (!window.customPatterns) {
+                window.customPatterns = [];
+            }
 
-            if (customFormatCH1) {
-                customFormatCH1.addEventListener('change', function () {
-                    if (this.value.trim()) {
-                        const pattern = this.value.trim();
-                        console.log('[CUSTOM FORMAT CH1] Pattern set:', pattern);
-                        // Store pattern in serialPlotData for later use
-                        serialPlotData.ch1.customFormat = pattern;
-                        updateSerialValues(true);
+            // Setup add pattern button and input
+            const addPatternBtn = document.getElementById('addPatternBtn');
+            const patternInput = document.getElementById('patternInput');
+
+            if (addPatternBtn && patternInput) {
+                const addPattern = function () {
+                    const pattern = patternInput.value.trim();
+                    if (!pattern) {
+                        alert('Please enter a pattern');
+                        return;
+                    }
+
+                    // Check for duplicates
+                    if (window.customPatterns.some(p => p.value === pattern)) {
+                        alert('This pattern already exists');
+                        return;
+                    }
+
+                    // Add new pattern
+                    const patternId = `pattern_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    window.customPatterns.push({ id: patternId, value: pattern });
+
+                    console.log('[CUSTOM PATTERN] Added:', pattern);
+                    patternInput.value = ''; // Clear input
+                    patternInput.focus();
+
+                    // Update dropdowns and patterns list
+                    updateCustomPatternsList();
+                    updateSerialValues(true);
+                };
+
+                addPatternBtn.addEventListener('click', addPattern);
+                patternInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addPattern();
                     }
                 });
             }
 
-            if (customFormatCH2) {
-                customFormatCH2.addEventListener('change', function () {
-                    if (this.value.trim()) {
-                        const pattern = this.value.trim();
-                        console.log('[CUSTOM FORMAT CH2] Pattern set:', pattern);
-                        // Store pattern in serialPlotData for later use
-                        serialPlotData.ch2.customFormat = pattern;
-                        updateSerialValues(true);
-                    }
-                });
-            }
+            // Initial display of custom patterns
+            updateCustomPatternsList();
         }
 
         // Parse value from serial data using custom format
@@ -1733,16 +1848,54 @@
             selectElementCH1.appendChild(defaultOption.cloneNode(true));
             selectElementCH2.appendChild(defaultOption.cloneNode(true));
 
-            // Add sorted options to dropdowns
+            // Add sorted options to dropdowns with remove option for custom patterns
             values.forEach(({ name, lastValue }) => {
+                const isCustomPattern = name.startsWith('Pattern');
                 const option = document.createElement('option');
                 option.value = name;
-                option.textContent = `${name} (${lastValue.toFixed(2)})`;
+                const removeText = isCustomPattern ? ' [remove: right-click]' : '';
+                option.textContent = `${name} (${lastValue.toFixed(2)})${removeText}`;
+                option.setAttribute('data-is-custom', isCustomPattern ? 'true' : 'false');
 
                 const option2 = option.cloneNode(true);
 
                 selectElementCH1.appendChild(option);
                 selectElementCH2.appendChild(option2);
+            });
+
+            // Add context menu to remove custom patterns
+            [selectElementCH1, selectElementCH2].forEach(selectElement => {
+                selectElement.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                    const selectedOption = this.options[this.selectedIndex];
+                    if (!selectedOption) return;
+
+                    const patternName = selectedOption.value;
+                    if (patternName && patternName.startsWith('Pattern')) {
+                        const confirmed = confirm(`Remove pattern "${patternName}"?`);
+                        if (confirmed) {
+                            // Find and remove from customPatterns array
+                            window.customPatterns = window.customPatterns.filter(p => {
+                                const idx = Object.keys(window.serialValuePatterns).findIndex(key => key === patternName);
+                                return idx === -1 || p.id !== (window.serialValuePatterns[patternName]?.id || '');
+                            });
+
+                            // Find pattern by name and remove
+                            for (let i = 0; i < window.customPatterns.length; i++) {
+                                if (`Pattern${i + 1}` === patternName) {
+                                    window.customPatterns.splice(i, 1);
+                                    break;
+                                }
+                            }
+
+                            // Remove from serialValuePatterns
+                            delete window.serialValuePatterns[patternName];
+
+                            console.log('[PATTERN REMOVED]:', patternName);
+                            updateSerialValues(true);
+                        }
+                    }
+                });
             });
 
             // Restore previous selections if they still exist in the data
