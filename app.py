@@ -172,8 +172,7 @@ def analyze_serial_data_for_controls(data):
     global serial_value_patterns
     import re
 
-    # Debug: Show incoming serial data
-    print(f"[SERIAL DEBUG] Received data: '{data.strip()}'")
+
 
     # First, check any existing Reader controls that have a command_template set
     # and try to parse the incoming data using that template. This allows
@@ -187,7 +186,6 @@ def analyze_serial_data_for_controls(data):
             try:
                 if control.get('type') == 'reader':
                     tmpl = control.get('config', {}).get('command_template')
-                    print(f"[READER DEBUG] Checking control: id={control.get('id')}, name='{control.get('name')}', template='{tmpl}'")
                     if tmpl and '{value}' in tmpl:
                         # Convert the template into a permissive regex:
                         # - replace {value} first before escaping
@@ -219,8 +217,6 @@ def analyze_serial_data_for_controls(data):
                                     'count': 1,
                                     'last_seen': time.time()
                                 }
-                                # Debug log to help trace template matches
-                                print(f"[READER DEBUG] Template matched: control_id={control.get('id')}, name='{control.get('name')}', template='{tmpl}', data='{data.strip()}', value={num}")
                                 
                                 # Update the control value immediately
                                 update_control_value(control['id'], num)

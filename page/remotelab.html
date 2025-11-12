@@ -972,14 +972,12 @@
                     }
                 }
 
-                // Update plot if active
-                const currentSlideData = slides[currentSlide - 1];
-                if (currentSlideData && currentSlideData.type === 'serial' && serialPlotData.active) {
-                    updateWaveformDisplay();
-                }
-
                 // Update serial values for plotting when new data arrives
-                updateSerialValues(true);
+                // (The animation loop will handle rendering)
+                const currentSlideData = slides[currentSlide - 1];
+                if (currentSlideData && currentSlideData.type === 'serial') {
+                    updateSerialValues(true);
+                }
             }
         }
 
@@ -1589,6 +1587,22 @@
             updateWaveformDisplay();
         }
 
+        function animateSerialPlot() {
+            // Continuous animation loop for smooth scrolling
+            if (!serialPlotData.active) {
+                serialPlotData.animationFrameId = null;
+                return;
+            }
+            
+            const currentSlideData = slides[currentSlide - 1];
+            if (currentSlideData && currentSlideData.type === 'serial') {
+                updateWaveformDisplay();
+            }
+            
+            // Schedule next frame for smooth 60fps rendering
+            serialPlotData.animationFrameId = requestAnimationFrame(animateSerialPlot);
+        }
+
         function updateWaveformDisplay() {
             const currentSlideData = slides[currentSlide - 1];
             const svgElement = document.getElementById('waveformSvg');
@@ -2008,31 +2022,37 @@
 
         // Serial plot buffers with value tracking
         window.serialPlotData = {
-            ch1: {
-                values: [],
-                timestamps: [],
-                selectedValue: null,
-                customFormat: null,  // Custom format pattern for value extraction
-                maxPoints: 1000,  // Maximum points to store
-                minValue: Infinity,
-                maxValue: -Infinity,
-                scale: 1.0
-            },
-            ch2: {
-                values: [],
-                timestamps: [],
-                selectedValue: null,
-                customFormat: null,  // Custom format pattern for value extraction
-                maxPoints: 1000,
-                minValue: Infinity,
-                maxValue: -Infinity,
-                scale: 1.0
-            },
-            plotTimespan: 10000,  // 10 seconds default timespan
-            lastUpdate: 0,
-            active: false,        // Flag to control plotting
-            updateInterval: null  // Store interval ID for updates
-        };
+        ch1: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,  // Maximum points to store
+        minValue: Infinity,
+        maxValue: -Infinity,
+        scale: 1.0,
+        lockedMinValue: Infinity,  // Locked min for stable y-axis
+        lockedMaxValue: -Infinity   // Locked max for stable y-axis
+        },
+        ch2: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,
+        minValue: Infinity,
+        maxValue: -Infinity,
+        scale: 1.0,
+        lockedMinValue: Infinity,  // Locked min for stable y-axis
+        lockedMaxValue: -Infinity   // Locked max for stable y-axis
+        },
+        plotTimespan: 10000,  // 10 seconds default timespan
+        lastUpdate: 0,
+        lastDataTime: 0,      // Track last data arrival time
+        active: false,        // Flag to control plotting
+        updateInterval: null, // Store interval ID for updates
+             animationFrameId: null // Store animation frame ID for smooth scrolling
+         };
 
         // Hub Controls Functions
         function createHubControlUI(valueName, controlType) {
@@ -2826,7 +2846,9 @@
                                 maxPoints: serialPlotData[channel].maxPoints,
                                 minValue: Infinity,
                                 maxValue: -Infinity,
-                                scale: 1.0
+                                scale: 1.0,
+                                lockedMinValue: Infinity,  // Reset locked axes
+                                lockedMaxValue: -Infinity
                             };
                         });
 
@@ -2835,13 +2857,9 @@
                         startBtn.disabled = true;
                         stopBtn.disabled = false;
 
-                        // Start periodic updates
-                        if (!serialPlotData.updateInterval) {
-                            serialPlotData.updateInterval = setInterval(() => {
-                                if (serialPlotData.active && slides[currentSlide - 1].type === 'serial') {
-                                    updateWaveformDisplay();
-                                }
-                            }, 100); // Update every 100ms
+                        // Start smooth animation loop for 60fps rendering
+                        if (!serialPlotData.animationFrameId) {
+                            serialPlotData.animationFrameId = requestAnimationFrame(animateSerialPlot);
                         }
                     }
                 });
@@ -2877,9 +2895,9 @@
                     } else if (currentSlideData.type === 'serial') {
                         // Stop Serial Plot
                         serialPlotData.active = false;
-                        if (serialPlotData.updateInterval) {
-                            clearInterval(serialPlotData.updateInterval);
-                            serialPlotData.updateInterval = null;
+                        if (serialPlotData.animationFrameId) {
+                            cancelAnimationFrame(serialPlotData.animationFrameId);
+                            serialPlotData.animationFrameId = null;
                         }
                         startBtn.disabled = false;
                         stopBtn.disabled = true;
@@ -3145,6 +3163,9 @@
         }
 
         function drawSerialPlot(svgElement, width, height, channelLabels, measurements) {
+            // Use current time as reference for both channels to keep them in sync
+            const currentTime = Date.now();
+            
             // Draw serial plot for both channels if they have data
             const drawChannel = (channel, color, yOffset) => {
                 const data = serialPlotData[channel];
@@ -3152,12 +3173,9 @@
                 const hasSelection = data.selectedValue || (data.customFormat && data.values && data.values.length > 0);
                 if (!hasSelection || !data.values || data.values.length === 0) return null;
 
-                // Calculate time range for x-axis
-                const timeRange = Math.min(
-                    serialPlotData.plotTimespan,
-                    data.timestamps[data.timestamps.length - 1] - data.timestamps[0]
-                );
-                const startTime = data.timestamps[data.timestamps.length - 1] - timeRange;
+                // Use fixed timespan for stable x-axis (scrolling window)
+                const timeRange = serialPlotData.plotTimespan;
+                const startTime = currentTime - timeRange;
 
                 // Filter data points within the time window
                 const validPoints = data.values.map((v, i) => ({
@@ -3167,19 +3185,32 @@
 
                 if (validPoints.length === 0) return null;
 
-                // Calculate scales with dynamic range
-                const xScale = width / timeRange;
-                const range = data.maxValue - data.minValue;
-                const padding = range * 0.1; // 10% padding
+                // Update locked axis ranges - only increase, never decrease
+                const range = data.maxValue - data.minValue || 1; // Avoid division by zero
+                const padding = Math.max(range * 0.1, 0.1); // At least 0.1 padding
                 const yMin = data.minValue - padding;
                 const yMax = data.maxValue + padding;
-                const yScale = (height / 2) / (yMax - yMin);
+
+                // Lock axis to highest ranges seen
+                if (yMin < data.lockedMinValue) {
+                    data.lockedMinValue = yMin;
+                }
+                if (yMax > data.lockedMaxValue) {
+                    data.lockedMaxValue = yMax;
+                }
+
+                // Use locked range for stable y-axis
+                const lockedRange = data.lockedMaxValue - data.lockedMinValue;
+                const yScale = (height / 2) / (lockedRange || 1);
+                
+                // Calculate x-scale with fixed timespan
+                const xScale = width / timeRange;
 
                 // Create SVG path
                 let pathData = '';
                 validPoints.forEach((point, i) => {
                     const x = (point.timestamp - startTime) * xScale;
-                    const y = height / 2 - ((point.value - yMin) * yScale);
+                    const y = height / 2 - ((point.value - data.lockedMinValue) * yScale);
                     pathData += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
                 });
 
@@ -3199,8 +3230,8 @@
                 const isLeftSide = channel === 'ch1'; // CH1 on left, CH2 on right
 
                 for (let i = 0; i <= scaleSteps; i++) {
-                    const value = yMin + (yMax - yMin) * (i / scaleSteps);
-                    const y = height / 2 - ((value - yMin) * yScale);
+                    const value = data.lockedMinValue + (data.lockedMaxValue - data.lockedMinValue) * (i / scaleSteps);
+                    const y = height / 2 - ((value - data.lockedMinValue) * yScale);
 
                     // Clamp y position to prevent text from going outside SVG bounds
                     const clampedY = Math.max(12, Math.min(height - 2, y + 4));
@@ -3223,8 +3254,8 @@
                     min: data.minValue.toFixed(2),
                     max: data.maxValue.toFixed(2),
                     current: validPoints[validPoints.length - 1].value.toFixed(2),
-                    yMin: yMin.toFixed(2),
-                    yMax: yMax.toFixed(2)
+                    yMin: data.lockedMinValue.toFixed(2),
+                    yMax: data.lockedMaxValue.toFixed(2)
                 };
             };            // Draw both channels
             const ch1Info = drawChannel('ch1', '#10B981', 0);
