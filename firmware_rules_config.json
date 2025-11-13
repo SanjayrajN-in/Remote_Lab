@@ -3,14 +3,11 @@
     "atmega328p": {
       "chip_name": "Arduino Uno (ATmega328P)",
       "pin_restrictions": {
-        "pin_6": {
+        "pin_1": {
           "description": "RX pin - Reserved for Serial communication",
           "allowed_modes": []
         },
-        "pin_1": {
-          "description": "TX pin - Reserved for Serial communication",
-          "allowed_modes": ["output"]
-        },
+       
         "pin_13": {
           "description": "Built-in LED pin",
           "allowed_modes": ["output"]
