@@ -140,15 +140,18 @@ class FirmwareValidator:
         """
         Extract pin operations from hex file using direct pin encoding detection.
         
-        Detects hardcoded pin configurations using the pattern: 0x40 + pin_number
-        Examples: 0x43=pin3, 0x45=pin5, 0x47=pin7
-        Pattern: pin encoding (4X) followed by E9 (LDI instruction)
+        Detects hardcoded pin configurations:
+        1. PIN_SET: 0x40 + pin_number (e.g., 0x43=pin3, 0x45=pin5, 0x47=pin7) - which pin is set HIGH
+        2. PIN_INIT: 0xE0 + pin_number (e.g., 0xE1=pin1, 0xE2=pin2) - which pin is initialized as OUTPUT
+        
+        Pattern: pin encoding followed by E9 (LDI instruction)
         
         Args:
             hex_file: Path to .hex firmware file
         
         Returns:
-            Dictionary mapping pin number to list of operations found
+            Dictionary mapping pin number to list of operations found:
+            {pin_num: ['OUTPUT_INITIALIZED', 'OUTPUT_SET_HIGH']} (or subset of these)
         """
         pin_ops = {}
         
@@ -159,11 +162,11 @@ class FirmwareValidator:
             with open(hex_file, 'r') as f:
                 hex_content = f.read()
             
-            # Direct pin encoding: 0x40 + pin_number (e.g., 0x43=pin3, 0x45=pin5, 0x47=pin7)
-            # Pattern: pin encoding (4X) followed by E9 (LDI instruction)
-            pin_encoding_pattern = r'(4[0-9a-fA-F])E9'
+            # Pattern 1: PIN_SET - 0x40 + pin_number followed by E9 (which pin is set HIGH)
+            # e.g., 0x43=pin3, 0x45=pin5, 0x47=pin7
+            pin_set_pattern = r'(4[0-9a-fA-F])E9'
             
-            for match in re.finditer(pin_encoding_pattern, hex_content, re.IGNORECASE):
+            for match in re.finditer(pin_set_pattern, hex_content, re.IGNORECASE):
                 hex_byte = match.group(1).upper()
                 try:
                     byte_val = int(hex_byte, 16)
@@ -171,8 +174,25 @@ class FirmwareValidator:
                     if 0 <= pin_num <= 19:  # Valid Arduino pin range
                         if pin_num not in pin_ops:
                             pin_ops[pin_num] = []
-                        if 'OUTPUT' not in pin_ops[pin_num]:
-                            pin_ops[pin_num].append('OUTPUT')
+                        if 'OUTPUT_SET_HIGH' not in pin_ops[pin_num]:
+                            pin_ops[pin_num].append('OUTPUT_SET_HIGH')
+                except (ValueError, IndexError):
+                    pass
+            
+            # Pattern 2: PIN_INIT - 0xE0 + pin_number followed by E9 (which pin is initialized as OUTPUT)
+            # e.g., 0xE1=pin1, 0xE2=pin2
+            pin_init_pattern = r'(E[0-9a-fA-F])E9'
+            
+            for match in re.finditer(pin_init_pattern, hex_content, re.IGNORECASE):
+                hex_byte = match.group(1).upper()
+                try:
+                    byte_val = int(hex_byte, 16)
+                    pin_num = byte_val - 0xE0
+                    if 0 <= pin_num <= 19:  # Valid Arduino pin range
+                        if pin_num not in pin_ops:
+                            pin_ops[pin_num] = []
+                        if 'OUTPUT_INITIALIZED' not in pin_ops[pin_num]:
+                            pin_ops[pin_num].append('OUTPUT_INITIALIZED')
                 except (ValueError, IndexError):
                     pass
             
