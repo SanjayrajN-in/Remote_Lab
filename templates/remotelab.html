@@ -1,0 +1,3766 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Remote Lab Interface</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        .slider::-webkit-slider-thumb {
+            appearance: none;
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #1E40AF;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        .slider::-moz-range-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #3B82F6;
+            cursor: pointer;
+            border: 2px solid #1E40AF;
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .animate-fadeIn {
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(0);
+            }
+        }
+
+        .animate-slideIn {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes glow {
+
+            0%,
+            100% {
+                box-shadow: 0 0 5px rgba(59, 130, 246, 0.5);
+            }
+
+            50% {
+                box-shadow: 0 0 20px rgba(59, 130, 246, 0.8);
+            }
+        }
+
+        .animate-glow {
+            animation: glow 2s ease-in-out infinite;
+        }
+
+        /* Custom scrollbar - Cross-browser support */
+        /* WebKit browsers (Chrome, Safari, Edge) */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+            margin: 2px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.6) 0%, rgba(139, 92, 246, 0.6) 100%);
+            border-radius: 4px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.8) 0%, rgba(139, 92, 246, 0.8) 100%);
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+        }
+
+        ::-webkit-scrollbar-thumb:active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.9) 0%, rgba(139, 92, 246, 0.9) 100%);
+        }
+
+        ::-webkit-scrollbar-corner {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 4px;
+        }
+
+        /* Firefox */
+        * {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.6) rgba(255, 255, 255, 0.05);
+        }
+
+        /* Additional scrollbar styling for specific elements */
+        .overflow-y-auto::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 3px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.4);
+            border-radius: 3px;
+        }
+
+        .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+            background: rgba(59, 130, 246, 0.6);
+        }
+
+        /* Device Selection - Matching current theme */
+        .device-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .device-item {
+            padding: 15px 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .device-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+
+        .device-item:hover::before {
+            left: 100%;
+        }
+
+        .device-item:hover {
+            border-color: rgba(59, 130, 246, 0.3);
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.2);
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .device-item.selected {
+            border-color: rgba(59, 130, 246, 0.4);
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            transform: translateX(5px);
+            box-shadow: 0 5px 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .device-item strong {
+            display: block;
+            color: #e0e0e0;
+            font-size: 1.1em;
+            font-weight: 600;
+        }
+
+        .device-item small {
+            color: #b0b0b0;
+            font-size: 0.9em;
+        }
+
+        .refresh-icon {
+            background: rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            cursor: pointer;
+            padding: 6px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            color: #60a5fa;
+            margin-left: auto;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .refresh-icon:hover {
+            background: rgba(59, 130, 246, 0.2);
+            border-color: rgba(59, 130, 246, 0.4);
+            color: #3b82f6;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+            transform: translateY(-1px);
+        }
+
+        .refresh-icon:active {
+            transform: scale(0.95);
+        }
+
+        .refresh-icon.spinning svg {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Video Element Styling */
+        .video-element {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        @keyframes spin {
+            from {
+                transform: rotate(0deg);
+            }
+
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white">
+    <!-- Header -->
+    <header class="bg-black/20 backdrop-blur-sm border-b border-white/10 p-4">
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Remote Lab Interface
+            </h1>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                    <span class="text-sm text-gray-300">Connected</span>
+                </div>
+                <button
+                    class="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg transition-all duration-200">
+                    Emergency Stop
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <div class="flex h-[calc(100vh-80px)]">
+        <!-- Left Panel - Device controls and hub controls -->
+        <div class="w-1/3 p-6 space-y-6 overflow-y-auto">
+            <!-- Device Control -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Device Control
+                </h2>
+
+                <!-- Device Selection -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">
+                        Select Device
+                        <button class="refresh-icon ml-2" onclick="refreshDevices()" title="Refresh Devices">
+                            <svg viewBox="0 0 24 24" width="16" height="16">
+                                <path
+                                    d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" />
+                            </svg>
+                        </button>
+                    </label>
+                    <div id="devicesList" class="device-list">
+                        <div class="device-item">Loading devices...</div>
+                    </div>
+                </div>
+
+                <!-- File Upload -->
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">
+                        Upload Firmware
+                    </label>
+                    <div
+                        class="border-2 border-dashed border-white/20 rounded-lg p-6 text-center hover:border-blue-400/50 transition-colors cursor-pointer">
+                        <input type="file" accept=".hex,.bin" class="hidden" id="firmware-upload" />
+                        <label for="firmware-upload" class="cursor-pointer">
+                            <div class="text-gray-400 mb-2">
+                                <svg class="w-8 h-8 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                            </div>
+                            <p>Drop HEX/BIN file here or click to browse</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                Supports .hex and .bin files
+                            </p>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Validation Status -->
+                <div id="validationStatus" class="mb-4 p-3 rounded-lg hidden">
+                    <div id="validationMessage" class="text-sm"></div>
+                    <div id="validationDetails" class="text-xs mt-2 max-h-32 overflow-y-auto"></div>
+                </div>
+
+                <!-- Flash Button & Progress -->
+                <div class="space-y-3">
+                    <button
+                        class="w-full bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 py-3 rounded-lg font-semibold transition-all duration-200 transform hover:scale-[1.02]">
+                        Flash Device
+                    </button>
+
+                    <!-- Progress Bar -->
+                    <div class="bg-black/30 rounded-full h-3 overflow-hidden">
+                        <div class="bg-gradient-to-r from-green-400 to-blue-400 h-full w-0 transition-all duration-500 ease-out"
+                            style="width: 0%"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-gray-400">
+                        <span>Status: Ready</span>
+                        <span>0% Complete</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Serial Monitor -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Serial Monitor
+                </h2>
+
+                <!-- Serial Controls -->
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <select
+                        class="bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors">
+                        <option>9600</option>
+                        <option>115200</option>
+                        <option>57600</option>
+                        <option>38400</option>
+                    </select>
+                    <button id="serialToggleBtn"
+                        class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200">
+                        Connect
+                    </button>
+                </div>
+
+                <!-- Terminal -->
+                <div id="serialTerminal"
+                    class="bg-black/50 rounded-lg p-4 h-48 overflow-y-auto font-mono text-sm mb-4 border border-white/10">
+                    <div class="text-gray-500 italic">[Not connected - Select a device and click Connect]</div>
+                </div>
+
+                <!-- Command Input -->
+                <div class="flex space-x-2">
+                    <input type="text" placeholder="Enter command..."
+                        class="flex-1 bg-black/30 border border-white/20 rounded-lg px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors" />
+                    <button
+                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg px-4 py-2 transition-all duration-200">
+                        Send
+                    </button>
+                </div>
+            </div>
+
+            <!-- Hub Controls -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-blue-300">Hub Controls</h2>
+                    <button
+                        class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                        + Add Control
+                    </button>
+                </div>
+
+                <!-- Dynamic Controls Container -->
+                <div class="space-y-4">
+                    <!-- Controls will be dynamically added here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel - Video stream and oscilloscope -->
+        <div class="w-2/3 p-6 space-y-6 overflow-y-auto">
+            <!-- Video Stream -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Live Video Stream
+                </h2>
+                <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer"
+                    style="padding-bottom: 56.25%; position: relative;">
+                    <div id="videoPlaceholder"
+                        class="absolute inset-0 bg-gradient-to-br from-gray-800 to-gray-900 flex items-center justify-center">
+                        <div class="text-center">
+                            <div
+                                class="w-16 h-16 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-blue-400" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M8 5v14l11-7z" />
+                                </svg>
+                            </div>
+                            <p class="text-gray-400">Video Stream Offline</p>
+                            <p class="text-xs text-gray-500 mt-1">Hover to start streaming</p>
+                        </div>
+                    </div>
+                    <img id="videoElement" class="video-element" alt="Live Video Stream" style="display: none;">
+
+                    <!-- Video Controls Overlay -->
+                    <div
+                        class="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <button id="videoPlayBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200"
+                            title="Start Video Stream">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M8 5v14l11-7z" />
+                            </svg>
+                        </button>
+                        <button id="videoStopBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 -ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none"
+                            title="Stop Video Stream">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                        </button>
+                        <button id="audioMuteBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200"
+                            title="Start Audio Stream">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M6.343 6.343a9 9 0 000 12.728m2.829-9.9a5 5 0 000 7.072" />
+                            </svg>
+                        </button>
+                        <button id="audioStopBtn"
+                            class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 ml-16 bg-white/20 hover:bg-white/30 rounded-full p-3 transition-all duration-200 opacity-0 pointer-events-none"
+                            title="Stop Audio Stream">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                <path
+                                    d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5.5 9v6h2l3 3V6l-3 3H5.5z" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Oscilloscope -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10 flex-1">
+                <!-- Oscilloscope Header -->
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-blue-300">Oscilloscope</h2>
+                    <div class="flex space-x-2">
+                        <button id="oscilloscopeStartBtn"
+                            class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                            Start
+                        </button>
+                        <button id="oscilloscopeStopBtn"
+                            class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                            Stop
+                        </button>
+                        <button id="oscilloscopeClearBtn"
+                             class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                             Clear
+                         </button>
+                         <div id="triggerButtonContainer">
+                             <button id="triggerToggleBtn"
+                                 class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200"
+                                 title="Toggle trigger mode for stable pulse capture">
+                                 Enable Trigger
+                             </button>
+                         </div>
+                    </div>
+                </div>
+
+                <!-- Oscilloscope Controls -->
+                <div id="oscilloscopeControls" class="flex gap-4 mb-2">
+                     <!-- GPIO Timebase Control -->
+                      <div id="gpioTimebaseControl" class="p-2">
+                          <label class="block text-xs font-medium mb-0.5">
+                              Time-base: 10.00µs/div
+                          </label>
+                          <input type="range" min="0" max="100" value="0"
+                              class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                      </div>
+
+                     <!-- Amplitude Control (GPIO Only) -->
+                       <div id="amplitudeControl" class="p-2">
+                           <label class="block text-xs font-medium mb-0.5">
+                               Amplitude: 1.0x
+                           </label>
+                           <input type="range" min="0" max="100" value="50"
+                               class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                       </div>
+
+                     <!-- GPIO Channel Selection -->
+                     <div id="gpioChannelControl" class="p-2">
+                         <label class="block text-xs font-medium mb-0.5">GPIO Channel</label>
+                         <select
+                             class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                             <option>Channel 1</option>
+                             <option>Channel 2</option>
+                             <option>Both</option>
+                         </select>
+                     </div>
+                 </div>
+
+                <!-- Serial Controls Container (Separate section below GPIO controls) -->
+                <div id="serialControlsContainer" class="flex flex-col gap-4 mb-2" style="display: none;">
+                     
+                     <!-- Serial Channel Selection (Horizontal) -->
+                     <div class="p-2">
+                         <div class="grid grid-cols-2 gap-2">
+                             <div>
+                                 <label class="block text-xs font-medium mb-1">Channel 1</label>
+                                 <select id="serialValueSelectCH1"
+                                     class="w-full bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                     <option value="">Select Value...</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label class="block text-xs font-medium mb-1">Channel 2</label>
+                                 <select id="serialValueSelectCH2"
+                                     class="w-full bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                     <option value="">Select Value...</option>
+                                 </select>
+                             </div>
+                         </div>
+                     </div>
+
+                     <!-- Serial Timebase Control -->
+                     <div class="p-2">
+                         <label id="serialTimebaseLabel" class="block text-xs font-medium mb-1">
+                             Time-base: 1000.0ms
+                         </label>
+                         <input type="range" min="0" max="100" value="50"
+                             class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                     </div>
+
+                     <!-- Custom Pattern Input (Serial Plot) -->
+                     <div class="p-2 border-t border-white/10">
+                         <label class="block text-xs font-medium mb-2">Add Custom Pattern</label>
+                         <div class="flex gap-1 mb-2">
+                             <input id="patternInput" type="text" placeholder="e.g., temp={value}C"
+                                 class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors" />
+                             <button id="addPatternBtn"
+                                 class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded px-2 py-1 text-sm transition-all duration-200">
+                                 Add
+                             </button>
+                         </div>
+                         <div id="patternsContainer" class="text-xs space-x-1 space-y-1 max-h-32 overflow-y-auto flex flex-wrap"></div>
+                     </div>
+                 </div>
+
+                <!-- Slide Carousel -->
+                <div class="flex items-center justify-between mb-3">
+                    <div id="slideCarousel" class="flex space-x-2">
+                        <button
+                            class="w-8 h-8 rounded text-sm transition-all duration-200 bg-blue-500/30 border border-blue-500/50 text-blue-300">
+                            1
+                        </button>
+                    </div>
+                    <button id="addSlideBtn"
+                        class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded px-3 py-1 text-sm transition-all duration-200">
+                        + Add Slide
+                    </button>
+                </div>
+
+                <!-- Current Slide Info -->
+                <div class="mb-4 text-sm text-gray-300">
+                    <span class="font-medium text-blue-300">GPIO Analysis</span>
+                    <span class="ml-2 text-xs bg-gray-700 px-2 py-1 rounded">GPIO</span>
+                </div>
+
+                <!-- Oscilloscope Display -->
+                <div class="bg-black rounded-lg p-4 h-80 border border-white/10 relative overflow-hidden">
+                    <!-- Combined Grid and Waveforms -->
+                    <svg class="absolute inset-0 w-full h-full" id="waveformSvg" style="width: 100%; height: 100%;">
+                        <!-- Grid Background -->
+                        <defs>
+                            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5" />
+                            </pattern>
+                            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+                                <rect width="100" height="100" fill="url(#smallGrid)" />
+                                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#4B5563" stroke-width="1" />
+                            </pattern>
+                        </defs>
+                        <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
+
+                    </svg>
+
+                    <!-- Channel Labels -->
+                    <div class="absolute top-2 left-2 space-y-1">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-xs text-green-400">CH1 (Real GPIO pin17-pin18)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                            <span class="text-xs text-blue-400">CH2 (Real GPIO pin22-pin23)</span>
+                        </div>
+                    </div>
+
+                    <!-- Measurements -->
+                    <div class="absolute top-2 right-2 text-xs space-y-1">
+                    </div>
+
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        let socket = null;
+        let selectedDevice = null;
+        let currentFirmware = null;
+        let currentSlide = 1;
+        let totalSlides = 1;
+        let slides = [{ type: 'gpio', name: 'GPIO Logic Analyzer', active: false }];
+        let hubControls = [];
+        let gpioIsRunning = false;  // Track GPIO acquisition state across slides
+
+        // Initialize SocketIO connection
+        function initSocket() {
+            try {
+                socket = io();
+
+                socket.on('connect', function () {
+                });
+
+                socket.on('disconnect', function () {
+                });
+
+                // Handle flash progress updates
+                socket.on('flash_progress', function (data) {
+                    updateFlashProgress(data.progress, data.status, data.in_progress);
+                });
+
+                // Handle video frame updates
+                socket.on('video_frame', function (data) {
+                    updateVideoFrame(data.frame);
+                });
+
+                // Handle serial data
+                socket.on('serial_data', function (data) {
+                    addToSerialTerminal(data.data);
+                });
+
+                socket.on('serial_status', function (data) {
+                    updateSerialStatus(data);
+                });
+
+                // Handle serial plot stop (when serial monitor is disconnected)
+                socket.on('stop_serial_plot', function (data) {
+                    // Stop the serial plot if it's running
+                    if (window.serialPlotData && window.serialPlotData.active) {
+                        window.serialPlotData.active = false;
+                        if (window.serialPlotData.animationFrameId) {
+                            cancelAnimationFrame(window.serialPlotData.animationFrameId);
+                            window.serialPlotData.animationFrameId = null;
+                        }
+                        // Update button states
+                        const startBtn = document.getElementById('oscilloscopeStartBtn');
+                        const stopBtn = document.getElementById('oscilloscopeStopBtn');
+                        if (startBtn) startBtn.disabled = false;
+                        if (stopBtn) stopBtn.disabled = true;
+                        console.log('Serial plot stopped due to serial monitor disconnect');
+                    }
+                });
+
+                // Handle logic analyzer data
+                socket.on('logic_analyzer_data', function (data) {
+                    // Only update oscilloscope display if current slide is GPIO
+                    const currentSlideData = slides[currentSlide - 1];
+                    if (currentSlideData && currentSlideData.type === 'gpio') {
+                        updateOscilloscopeDisplay(data);
+                    }
+                });
+
+
+
+                // Test socket connection
+                socket.on('test_event', function (data) {
+                });
+
+                // Handle streaming status updates
+                socket.on('streaming_status', function (data) {
+                    if (data.type === 'video') {
+                        if (data.status === 'started') {
+                            showVideoElement();
+                            // Update button states
+                            toggleVideoButtons(true);
+                        } else if (data.status === 'stopped') {
+                            hideVideoElement();
+                            // Update button states
+                            toggleVideoButtons(false);
+                        } else if (data.status === 'error') {
+                            alert('Video streaming error: ' + (data.message || 'Unknown error'));
+                            hideVideoElement();
+                            // Reset button states on error
+                            toggleVideoButtons(false);
+                        }
+                    } else if (data.type === 'audio') {
+                        if (data.status === 'started') {
+                            // Update button states
+                            toggleAudioButtons(true);
+                        } else if (data.status === 'stopped') {
+                            // Update button states
+                            toggleAudioButtons(false);
+                        } else if (data.status === 'error') {
+                            alert('Audio streaming error: ' + (data.message || 'Unknown error'));
+                            // Reset button states on error
+                            toggleAudioButtons(false);
+                        }
+                    } else if (data.type === 'all') {
+                        if (data.status === 'stopped') {
+                            hideVideoElement();
+                            // Reset all button states
+                            toggleVideoButtons(false);
+                            toggleAudioButtons(false);
+                        }
+                    }
+                });
+
+                // Hub Controls event handlers
+                socket.on('hub_controls_cleared', function (data) {
+                    // Clear all existing controls from UI
+                    clearAllHubControls();
+                });
+
+                socket.on('hub_controls_detected', function (data) {
+                    // Auto-create reader controls for detected values
+                    data.values.forEach(valueName => {
+                        createHubControlUI(valueName, 'reader');
+                    });
+                });
+
+                socket.on('hub_commands_detected', function (data) {
+                    // Update global detected commands
+                    window.detectedCommands = new Set(data.commands);
+                    // Re-render existing controls to update dropdowns
+                    hubControls.forEach(control => {
+                        if (control.type === 'toggle') {
+                            renderHubControl(control);
+                        }
+                    });
+                });
+
+                socket.on('hub_control_created', function (data) {
+                    hubControls.push(data.control);
+                    renderHubControl(data.control);
+                });
+
+                socket.on('hub_control_updated', function (data) {
+                    const existingControl = hubControls.find(c => c.id === data.control.id);
+                    if (existingControl) {
+                        // Update existing control
+                        Object.assign(existingControl, data.control);
+                    }
+                    updateHubControlUI(data.control);
+                });
+
+                socket.on('hub_control_deleted', function (data) {
+                    removeHubControlUI(data.control.id);
+                });
+
+                socket.on('control_command_sent', function (data) {
+                    updateControlValueDisplay(data.id, data.value);
+                });
+
+                socket.on('hub_control_error', function (data) {
+                    console.error('Hub control error:', data.message);
+                    alert('Hub Control Error: ' + data.message);
+                });
+
+            } catch (error) {
+                console.error('Failed to initialize Socket.IO:', error);
+                alert('Failed to connect to server. Please refresh the page.');
+            }
+        }
+
+        // Flash progress bar update
+        function updateFlashProgress(progress, status, inProgress) {
+            const progressBar = document.querySelector('.bg-gradient-to-r.from-green-400.to-blue-400');
+            const statusText = document.querySelector('.flex.justify-between.text-xs.text-gray-400 span:first-child');
+            const percentText = document.querySelector('.flex.justify-between.text-xs.text-gray-400 span:last-child');
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+
+            if (progressBar) {
+                progressBar.style.width = progress + '%';
+            }
+
+            if (statusText) {
+                statusText.textContent = 'Status: ' + status;
+            }
+
+            if (percentText) {
+                percentText.textContent = progress + '% Complete';
+            }
+
+            if (flashButton) {
+                if (inProgress) {
+                    flashButton.disabled = true;
+                    flashButton.textContent = 'Flashing...';
+                } else {
+                    flashButton.disabled = false;
+                    flashButton.textContent = 'Flash Device';
+                }
+            }
+        }
+
+        // Video frame update
+        function updateVideoFrame(frameData) {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+
+            if (videoElement && frameData) {
+                videoElement.src = 'data:image/jpeg;base64,' + frameData;
+                videoElement.style.display = 'block';
+                if (videoPlaceholder) {
+                    videoPlaceholder.style.display = 'none';
+                }
+            }
+        }
+
+        // Show video element and hide placeholder
+        function showVideoElement() {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+            if (videoElement) {
+                videoElement.style.display = 'block';
+            }
+            if (videoPlaceholder) {
+                videoPlaceholder.style.display = 'none';
+            }
+        }
+
+        // Hide video element and show placeholder
+        function hideVideoElement() {
+            const videoElement = document.getElementById('videoElement');
+            const videoPlaceholder = document.getElementById('videoPlaceholder');
+            if (videoElement) {
+                videoElement.style.display = 'none';
+            }
+            if (videoPlaceholder) {
+                videoPlaceholder.style.display = 'flex';
+            }
+        }
+
+        // Serial terminal functions
+        function addToSerialTerminal(data) {
+            const terminal = document.getElementById('serialTerminal');
+            if (terminal) {
+                const line = document.createElement('div');
+                line.className = 'text-green-400';
+                line.textContent = '[' + new Date().toLocaleTimeString() + '] ' + data;
+                terminal.appendChild(line);
+                terminal.scrollTop = terminal.scrollHeight;
+
+                // Ensure we're using the current slide's value patterns (critical for multi-slide isolation)
+                getSlideValuePatterns();
+
+                // Process the data for value detection using custom formats first
+                let newValueDetected = false;
+                let customValuesProcessed = false;
+
+                // Check if custom patterns are set and try to parse using them
+                if (window.serialPlotData.customPatterns && window.serialPlotData.customPatterns.length > 0) {
+                    window.serialPlotData.customPatterns.forEach((patternValue, idx) => {
+                        if (!patternValue) return; // Skip empty patterns
+                        const value = parseValueFromFormat(data, patternValue);
+                        if (value !== null) {
+                            const name = `Pattern${idx + 1}`;
+                            if (!window.serialValuePatterns[name]) {
+                                window.serialValuePatterns[name] = {
+                                    lastValue: value,
+                                    timestamp: Date.now(),
+                                    values: [value],
+                                    timestamps: [Date.now()],
+                                    maxPoints: 1000,
+                                    isCustom: true,
+                                    pattern: patternValue
+                                };
+                                newValueDetected = true;
+                            } else {
+                                window.serialValuePatterns[name].lastValue = value;
+                                window.serialValuePatterns[name].timestamp = Date.now();
+                                window.serialValuePatterns[name].values.push(value);
+                                window.serialValuePatterns[name].timestamps.push(Date.now());
+                                if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                    window.serialValuePatterns[name].values.shift();
+                                    window.serialValuePatterns[name].timestamps.shift();
+                                }
+                            }
+                            if (serialPlotData.ch1.selectedValue === name) {
+                                serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                                serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                                serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                                serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                            }
+                            if (serialPlotData.ch2.selectedValue === name) {
+                                serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                                serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                                serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                                serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                            }
+                            customValuesProcessed = true;
+                        }
+                    });
+                }
+
+                // Support legacy customFormat field
+                if (serialPlotData.ch1.customFormat) {
+                    const value = parseValueFromFormat(data, serialPlotData.ch1.customFormat);
+                    if (value !== null) {
+                        const name = 'CH1_Custom';
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000,
+                                isCustom: true
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
+                        }
+                        if (serialPlotData.ch1.selectedValue === name) {
+                            serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        customValuesProcessed = true;
+                    }
+                }
+
+                // Support legacy customFormat field
+                if (serialPlotData.ch2.customFormat) {
+                    const value = parseValueFromFormat(data, serialPlotData.ch2.customFormat);
+                    if (value !== null) {
+                        const name = 'CH2_Custom';
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000,
+                                isCustom: true
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
+                        }
+                        if (serialPlotData.ch2.selectedValue === name) {
+                            serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        customValuesProcessed = true;
+                    }
+                }
+
+                // If custom formats didn't extract values, fall back to auto-detection
+                if (!customValuesProcessed) {
+                    const values = Array.from(data.matchAll(/([a-zA-Z_][a-zA-Z0-9_]*)\s*[=:]\s*([+-]?\d*\.?\d+)/g));
+
+                    for (const match of values) {
+                        const name = match[1];
+                        const value = parseFloat(match[2]);
+
+                        if (!window.serialValuePatterns[name]) {
+                            window.serialValuePatterns[name] = {
+                                lastValue: value,
+                                timestamp: Date.now(),
+                                values: [value],
+                                timestamps: [Date.now()],
+                                maxPoints: 1000
+                            };
+                            newValueDetected = true;
+                        } else {
+                            window.serialValuePatterns[name].lastValue = value;
+                            window.serialValuePatterns[name].timestamp = Date.now();
+                            window.serialValuePatterns[name].values.push(value);
+                            window.serialValuePatterns[name].timestamps.push(Date.now());
+
+                            // Maintain buffer size
+                            if (window.serialValuePatterns[name].values.length > window.serialValuePatterns[name].maxPoints) {
+                                window.serialValuePatterns[name].values.shift();
+                                window.serialValuePatterns[name].timestamps.shift();
+                            }
+                        }
+
+                        // Update serial plot data if this value is being plotted
+                        if (serialPlotData.ch1.selectedValue === name) {
+                            serialPlotData.ch1.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch1.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch1.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch1.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                        if (serialPlotData.ch2.selectedValue === name) {
+                            serialPlotData.ch2.values = [...window.serialValuePatterns[name].values];
+                            serialPlotData.ch2.timestamps = [...window.serialValuePatterns[name].timestamps];
+                            serialPlotData.ch2.minValue = Math.min(...window.serialValuePatterns[name].values);
+                            serialPlotData.ch2.maxValue = Math.max(...window.serialValuePatterns[name].values);
+                        }
+                    }
+                }
+
+                // Only update dropdowns if new value type is detected
+                if (newValueDetected || customValuesProcessed) {
+                    updateSerialValues(true);
+
+                    // Auto-create a serial plot slide if this is the first data and no serial slide exists
+                    // DISABLED: Auto-slide creation removed per user request
+                    // const hasSerialSlide = slides.some(slide => slide.type === 'serial');
+                    // const valueCount = Object.keys(window.serialValuePatterns).length;
+                    //
+                    // if (!hasSerialSlide && valueCount >= 1 && totalSlides < 5) {
+                    //     console.log('[AUTO-CREATE] Creating serial plot slide for detected values');
+                    //     totalSlides++;
+                    //     slides.push({
+                    //         type: 'serial',
+                    //         name: 'Serial Plot (Auto)'
+                    //     });
+                    //     updateSlideCarousel();
+                    //
+                    //     // Switch to the new serial plot slide
+                    //     switchToSlide(totalSlides);
+                    // }
+                }
+
+                // Update serial values for plotting when new data arrives
+                // (The animation loop will handle rendering)
+                const currentSlideData = slides[currentSlide - 1];
+                if (currentSlideData && currentSlideData.type === 'serial') {
+                    updateSerialValues(true);
+                }
+            }
+        }
+
+        function updateSerialStatus(data) {
+            const toggleBtn = document.getElementById('serialToggleBtn');
+
+            if (data.status === 'started') {
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Disconnect';
+                    toggleBtn.className = 'bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+                // Clear sample data when connecting
+                const terminal = document.getElementById('serialTerminal');
+                if (terminal) {
+                    terminal.innerHTML = '<div class="text-green-400">[System] Serial monitor connected</div>';
+                }
+            } else if (data.status === 'stopped') {
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Connect';
+                    toggleBtn.className = 'bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+                // Add disconnection message
+                const terminal = document.getElementById('serialTerminal');
+                if (terminal) {
+                    const line = document.createElement('div');
+                    line.className = 'text-yellow-400';
+                    line.textContent = '[' + new Date().toLocaleTimeString() + '] [System] Serial monitor disconnected';
+                    terminal.appendChild(line);
+                    terminal.scrollTop = terminal.scrollHeight;
+                }
+            } else if (data.status === 'error') {
+                alert('Serial error: ' + data.message);
+                if (toggleBtn) {
+                    toggleBtn.textContent = 'Connect';
+                    toggleBtn.className = 'bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded-lg py-2 transition-all duration-200';
+                }
+            }
+        }
+
+        // Device management functions
+        function refreshDevices() {
+            // Add spinning animation
+            const refreshIcon = document.querySelector('.refresh-icon');
+            if (refreshIcon) {
+                refreshIcon.classList.add('spinning');
+            }
+
+            fetch('/devices')
+                .then(response => response.json())
+                .then(data => {
+                    const devicesList = document.getElementById('devicesList');
+                    if (data.devices.length === 0) {
+                        devicesList.innerHTML = '<div class="device-item">No devices detected</div>';
+                        updateFlashButtonState();
+                    } else {
+                        devicesList.innerHTML = '';
+                        data.devices.forEach(device => {
+                            const deviceItem = document.createElement('div');
+                            deviceItem.className = 'device-item';
+                            deviceItem.onclick = () => selectDevice(deviceItem, device);
+                            deviceItem.innerHTML = `<strong>${device[2]}</strong><br><small>${device[1]}</small>`;
+                            devicesList.appendChild(deviceItem);
+                        });
+                        updateFlashButtonState();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error fetching devices:', error);
+                    document.getElementById('devicesList').innerHTML = '<div class="device-item">Error loading devices</div>';
+                    updateFlashButtonState();
+                })
+                .finally(() => {
+                    // Remove spinning animation after a short delay
+                    setTimeout(() => {
+                        if (refreshIcon) {
+                            refreshIcon.classList.remove('spinning');
+                        }
+                    }, 500);
+                });
+        }
+
+        function selectDevice(item, device) {
+            // Remove previous selection
+            document.querySelectorAll('.device-item').forEach(i => i.classList.remove('selected'));
+            // Add selection to clicked item
+            item.classList.add('selected');
+            item.setAttribute('data-device', JSON.stringify(device));
+            selectedDevice = device;
+            updateFlashButtonState();
+            // Validate firmware if it's already uploaded
+            if (currentFirmware) {
+                validateFirmware();
+            }
+        }
+
+        function updateFlashButtonState() {
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+            if (flashButton) {
+                flashButton.disabled = !selectedDevice || !currentFirmware;
+            }
+        }
+
+
+
+        // Map device type to chip type
+        function getChipTypeFromDevice(deviceType) {
+            const deviceToChip = {
+                'arduino': 'atmega328p',
+                'atmega2560': 'atmega2560',
+                'esp32': 'esp32',
+                'attiny85': 'attiny85',
+                'stm32': 'stm32',
+                'rp2040': 'rp2040'
+            };
+            return deviceToChip[deviceType] || 'atmega328p';
+        }
+
+        // Validate firmware against selected device's chip
+         function validateFirmware() {
+             const validationStatus = document.getElementById('validationStatus');
+             const validationMessage = document.getElementById('validationMessage');
+             const validationDetails = document.getElementById('validationDetails');
+
+             if (!selectedDevice) {
+                 validationStatus.classList.add('hidden');
+                 return;
+             }
+
+             if (!currentFirmware) {
+                 validationStatus.classList.add('hidden');
+                 return;
+             }
+
+             // Show loading state
+             validationStatus.classList.remove('hidden');
+             validationMessage.innerHTML = '<span class="text-yellow-400">Validating firmware...</span>';
+             validationDetails.innerHTML = '';
+
+             // Get chip type from selected device (selectedDevice[3] is the chip type)
+             const chipType = selectedDevice[3];
+             
+             const formData = new FormData();
+             formData.append('chip_type', chipType);
+
+            fetch('/validate-firmware', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    validationStatus.classList.remove('hidden');
+                    
+                    if (data.passed) {
+                        validationStatus.classList.remove('bg-red-500/20', 'border-red-500/50');
+                        validationStatus.classList.add('bg-green-500/20', 'border-red-500/50', 'border');
+                        validationMessage.innerHTML = '<span class="text-green-400">✓ Validation Passed</span>';
+                        validationDetails.innerHTML = `<div class="text-green-300">${data.message}</div>`;
+                    } else {
+                        validationStatus.classList.remove('bg-green-500/20');
+                        validationStatus.classList.add('bg-red-500/20', 'border', 'border-red-500/50');
+                        validationMessage.innerHTML = '<span class="text-red-400">✗ Validation Failed</span>';
+                        
+                        let details = `<div class="text-red-300">${data.message}</div>`;
+                        if (data.violations && Object.keys(data.violations).length > 0) {
+                            details += '<div class="mt-2 text-red-200"><strong>Violations:</strong><ul class="ml-4">';
+                            Object.entries(data.violations).forEach(([pin, info]) => {
+                                details += `<li>• ${pin}: ${info.violations.join(', ')} not allowed (allowed: ${info.allowed_modes.join(', ')})</li>`;
+                            });
+                            details += '</ul></div>';
+                        }
+                        validationDetails.innerHTML = details;
+                    }
+                })
+                .catch(error => {
+                    console.error('Validation error:', error);
+                    validationStatus.classList.remove('hidden', 'bg-green-500/20');
+                    validationStatus.classList.add('bg-red-500/20', 'border', 'border-red-500/50');
+                    validationMessage.innerHTML = '<span class="text-red-400">✗ Error during validation</span>';
+                    validationDetails.innerHTML = `<div class="text-red-300">${error.message}</div>`;
+                });
+        }
+
+        // Flash button click handler
+        function setupFlashButton() {
+            const flashButton = document.querySelector('.bg-gradient-to-r.from-green-500.to-blue-500');
+            if (flashButton) {
+                flashButton.addEventListener('click', function () {
+                    if (!selectedDevice || !currentFirmware) {
+                        alert('Please select a device and upload firmware first');
+                        return;
+                    }
+
+                    // Check validation status
+                    const validationStatus = document.getElementById('validationStatus');
+                    const validationMessage = document.getElementById('validationMessage');
+                    
+                    if (!validationStatus.classList.contains('hidden')) {
+                        // Check if validation passed
+                        const isPassed = validationStatus.classList.contains('bg-green-500/20');
+                        if (!isPassed) {
+                            alert('Firmware validation failed. Please fix the issues before flashing.');
+                            return;
+                        }
+                    } else {
+                        alert('Please validate the firmware first');
+                        return;
+                    }
+
+                    // All checks passed - proceed with flashing
+                    fetch('/flash', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/x-www-form-urlencoded',
+                        },
+                        body: new URLSearchParams({
+                             'device_type': selectedDevice[0],
+                             'port': selectedDevice[1]
+                         })
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                        })
+                        .catch(error => {
+                            console.error('Flash error:', error);
+                            alert('Failed to start flashing process');
+                        });
+                });
+            }
+        }
+
+        // File upload handler
+        function setupFileUpload() {
+            const fileInput = document.getElementById('firmware-upload');
+            if (fileInput) {
+                fileInput.addEventListener('change', function (event) {
+                    const file = event.target.files[0];
+                    if (!file) return;
+
+                    const formData = new FormData();
+                    formData.append('file', file);
+
+                    fetch('/upload', {
+                        method: 'POST',
+                        body: formData
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.error) {
+                                alert('Upload error: ' + data.error);
+                            } else {
+                                currentFirmware = data.filename;
+                                alert('File uploaded successfully!');
+                                updateFlashButtonState();
+                                // Auto-validate if chip is selected
+                                validateFirmware();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Upload error:', error);
+                            alert('Upload failed!');
+                        });
+                });
+            }
+
+
+        }
+
+        // Serial monitor functions
+        function setupSerialControls() {
+            const toggleBtn = document.getElementById('serialToggleBtn');
+            const sendBtn = document.querySelector('.bg-blue-500\\/20');
+            const commandInput = document.querySelector('input[placeholder="Enter command..."]');
+            const baudSelect = document.querySelector('select');
+
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', function () {
+                    const isConnected = toggleBtn.textContent === 'Disconnect';
+
+                    if (isConnected) {
+                        // Disconnect
+                        socket.emit('stop_serial_monitor');
+                    } else {
+                        // Connect
+                        const selectedDevice = document.querySelector('.device-item.selected');
+                        if (!selectedDevice) {
+                            alert('Please select a device first');
+                            return;
+                        }
+
+                        const deviceData = selectedDevice.getAttribute('data-device');
+                        if (!deviceData) {
+                            alert('Device data not available');
+                            return;
+                        }
+
+                        const device = JSON.parse(deviceData);
+                        const baudrate = baudSelect ? parseInt(baudSelect.value) : 9600;
+
+                        socket.emit('start_serial_monitor', {
+                            port: device[1], // port
+                            baudrate: baudrate
+                        });
+                    }
+                });
+            }
+
+            if (sendBtn && commandInput) {
+                sendBtn.addEventListener('click', function () {
+                    const command = commandInput.value.trim();
+                    if (command) {
+                        socket.emit('send_serial_data', { data: command });
+                        commandInput.value = '';
+                    }
+                });
+
+                commandInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        const command = commandInput.value.trim();
+                        if (command) {
+                            socket.emit('send_serial_data', { data: command });
+                            commandInput.value = '';
+                        }
+                    }
+                });
+            }
+        }
+
+        // Helper functions for button toggling
+        function toggleVideoButtons(showStop) {
+            const videoPlayBtn = document.getElementById('videoPlayBtn');
+            const videoStopBtn = document.getElementById('videoStopBtn');
+
+            if (showStop) {
+                // Show stop button, hide play button
+                if (videoPlayBtn) {
+                    videoPlayBtn.style.opacity = '0';
+                    videoPlayBtn.style.pointerEvents = 'none';
+                }
+                if (videoStopBtn) {
+                    videoStopBtn.style.opacity = '1';
+                    videoStopBtn.style.pointerEvents = 'auto';
+                }
+            } else {
+                // Show play button, hide stop button
+                if (videoPlayBtn) {
+                    videoPlayBtn.style.opacity = '1';
+                    videoPlayBtn.style.pointerEvents = 'auto';
+                }
+                if (videoStopBtn) {
+                    videoStopBtn.style.opacity = '0';
+                    videoStopBtn.style.pointerEvents = 'none';
+                }
+            }
+        }
+
+        function toggleAudioButtons(showStop) {
+            const audioMuteBtn = document.getElementById('audioMuteBtn');
+            const audioStopBtn = document.getElementById('audioStopBtn');
+
+            if (showStop) {
+                // Show stop button, hide start button
+                if (audioMuteBtn) {
+                    audioMuteBtn.style.opacity = '0';
+                    audioMuteBtn.style.pointerEvents = 'none';
+                }
+                if (audioStopBtn) {
+                    audioStopBtn.style.opacity = '1';
+                    audioStopBtn.style.pointerEvents = 'auto';
+                }
+            } else {
+                // Show start button, hide stop button
+                if (audioMuteBtn) {
+                    audioMuteBtn.style.opacity = '1';
+                    audioMuteBtn.style.pointerEvents = 'auto';
+                }
+                if (audioStopBtn) {
+                    audioStopBtn.style.opacity = '0';
+                    audioStopBtn.style.pointerEvents = 'none';
+                }
+            }
+        }
+
+        // Video and audio streaming controls
+        function setupStreamingControls() {
+            const videoPlayBtn = document.getElementById('videoPlayBtn');
+            const videoStopBtn = document.getElementById('videoStopBtn');
+            const audioMuteBtn = document.getElementById('audioMuteBtn');
+            const audioStopBtn = document.getElementById('audioStopBtn');
+
+            // Video play button
+            if (videoPlayBtn) {
+                videoPlayBtn.addEventListener('click', function () {
+                    if (socket && socket.connected) {
+                        socket.emit('start_streaming', { video: true, audio: false });
+                        // Show stop button, hide play button
+                        toggleVideoButtons(true);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Video stop button
+            if (videoStopBtn) {
+                videoStopBtn.addEventListener('click', function () {
+                    if (socket && socket.connected) {
+                        socket.emit('stop_streaming');
+                        // Show play button, hide stop button
+                        toggleVideoButtons(false);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Audio start button
+            if (audioMuteBtn) {
+                audioMuteBtn.addEventListener('click', function () {
+                    if (socket && socket.connected) {
+                        socket.emit('start_streaming', { video: false, audio: true });
+                        // Show stop button, hide start button
+                        toggleAudioButtons(true);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Audio stop button
+            if (audioStopBtn) {
+                audioStopBtn.addEventListener('click', function () {
+                    if (socket && socket.connected) {
+                        socket.emit('stop_streaming');
+                        // Show start button, hide stop button
+                        toggleAudioButtons(false);
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+        }
+
+        // Slide management functions
+        function updateSlideCarousel() {
+            const carousel = document.getElementById('slideCarousel');
+            const addButton = document.getElementById('addSlideBtn');
+
+            if (!carousel) {
+                return;
+            }
+
+            // Clear existing buttons
+            carousel.innerHTML = '';
+
+            // Create slide buttons
+            for (let i = 1; i <= totalSlides; i++) {
+                const buttonContainer = document.createElement('div');
+                buttonContainer.className = 'relative flex items-center';
+
+                const button = document.createElement('button');
+                button.className = `w-8 h-8 rounded text-sm transition-all duration-200 ${i === currentSlide
+                    ? 'bg-blue-500/30 border border-blue-500/50 text-blue-300'
+                    : 'bg-white/10 hover:bg-white/20 border border-white/20 text-gray-400'
+                    }`;
+                button.textContent = i;
+                button.onclick = () => switchToSlide(i);
+                buttonContainer.appendChild(button);
+
+                // Add close button for slides after the first one
+                if (i > 1) {
+                    const closeButton = document.createElement('button');
+                    closeButton.className = 'absolute -top-1 -right-1 w-4 h-4 bg-red-500/80 hover:bg-red-500 text-white rounded-full text-xs flex items-center justify-center transition-all duration-200';
+                    closeButton.innerHTML = '×';
+                    closeButton.title = 'Remove slide';
+                    closeButton.onclick = (e) => {
+                        e.stopPropagation(); // Prevent triggering slide switch
+                        if (confirm(`Remove "${slides[i - 1].name}" slide?`)) {
+                            removeSlide(i);
+                        }
+                    };
+                    buttonContainer.appendChild(closeButton);
+                }
+
+                carousel.appendChild(buttonContainer);
+            }
+
+            // Update add button state
+            if (addButton) {
+                addButton.disabled = totalSlides >= 5;
+                addButton.style.opacity = totalSlides >= 5 ? '0.5' : '1';
+                // Remove existing event listeners
+                addButton.removeEventListener('click', addSerialPlotSlide);
+                // Add event listener if not at max slides
+                if (totalSlides < 5) {
+                    addButton.addEventListener('click', addSerialPlotSlide);
+                }
+            }
+
+            updateSlideDisplay();
+        }
+
+        function switchToSlide(slideNumber) {
+             // Save current slide data
+             if (currentSlide > 0) {
+                 const currentSlideData = slides[currentSlide - 1];
+                 if (currentSlideData && currentSlideData.type === 'gpio') {
+                     // Save GPIO active state
+                     currentSlideData.active = gpioIsRunning;
+                 } else if (currentSlideData && currentSlideData.type === 'serial' && currentSlideData.plotData) {
+                     // Save the global serialPlotData to the current slide's storage
+                     currentSlideData.plotData = JSON.parse(JSON.stringify(window.serialPlotData));
+                     // Also save the current slide's value patterns
+                     currentSlideData.plotData.valuePatterns = window.serialValuePatterns;
+                 }
+             }
+
+             currentSlide = slideNumber;
+             
+             // Load the new slide's data
+             const newSlideData = slides[currentSlide - 1];
+             if (newSlideData && newSlideData.type === 'gpio') {
+                 // Restore GPIO active state
+                 gpioIsRunning = newSlideData.active || false;
+             } else if (newSlideData && newSlideData.type === 'serial') {
+                 // Ensure slide has plotData structure
+                 if (!newSlideData.plotData) {
+                     newSlideData.plotData = createSerialPlotDataStructure();
+                 }
+                 // Restore the serial plot data from slide storage (preserving active state)
+                 window.serialPlotData = newSlideData.plotData;
+                 // Restore the slide-specific value patterns (direct reference, not copy)
+                 window.serialValuePatterns = newSlideData.plotData.valuePatterns || {};
+             }
+             
+             updateSlideCarousel();
+             updateControlsForSlide();
+             // Re-setup oscilloscope controls with fresh event listeners isolated to this slide
+             setupOscilloscopeControls();
+         }
+
+        // Helper function to ensure serialValuePatterns is in sync with current slide
+        function getSlideValuePatterns() {
+            const currentSlideData = slides[currentSlide - 1];
+            if (currentSlideData && currentSlideData.type === 'serial' && currentSlideData.plotData) {
+                if (!currentSlideData.plotData.valuePatterns) {
+                    currentSlideData.plotData.valuePatterns = {};
+                }
+                window.serialValuePatterns = currentSlideData.plotData.valuePatterns;
+                return window.serialValuePatterns;
+            }
+            return window.serialValuePatterns;
+        }
+
+        function createSerialPlotDataStructure() {
+             return {
+                 ch1: {
+                     values: [],
+                     timestamps: [],
+                     selectedValue: null,
+                     customFormat: null,
+                     maxPoints: 1000,
+                     minValue: Infinity,
+                     maxValue: -Infinity,
+                     scale: 1.0,
+                     lockedMinValue: Infinity,
+                     lockedMaxValue: -Infinity
+                 },
+                 ch2: {
+                     values: [],
+                     timestamps: [],
+                     selectedValue: null,
+                     customFormat: null,
+                     maxPoints: 1000,
+                     minValue: Infinity,
+                     maxValue: -Infinity,
+                     scale: 1.0,
+                     lockedMinValue: Infinity,
+                     lockedMaxValue: -Infinity
+                 },
+                 plotTimespan: 10000,
+                 lastUpdate: 0,
+                 lastDataTime: 0,
+                 active: false,
+                 updateInterval: null,
+                 animationFrameId: null,
+                 customPatterns: [],
+                 valuePatterns: {}  // Per-slide value patterns (not global)
+             };
+         }
+
+         function addSerialPlotSlide() {
+             if (totalSlides >= 5) return;
+
+             // Prompt for slide name if adding after first slide
+             let slideName = '';
+             if (totalSlides >= 1) {
+                 slideName = prompt('Enter slide name:', `Slide ${totalSlides + 1}`);
+                 if (!slideName || slideName.trim() === '') {
+                     return; // Cancel if no name provided
+                 }
+                 slideName = slideName.trim();
+             } else {
+                 slideName = 'Serial Plot 1';
+             }
+
+             totalSlides++;
+             slides.push({
+                 type: 'serial',
+                 name: slideName,
+                 plotData: createSerialPlotDataStructure()
+             });
+
+             switchToSlide(totalSlides);
+         }
+
+        function removeSlide(slideNumber) {
+            if (slideNumber === 1 || totalSlides <= 1) return; // Cannot remove first slide
+
+            // Remove slide from array
+            slides.splice(slideNumber - 1, 1);
+            totalSlides--;
+
+            // Adjust current slide if necessary
+            if (currentSlide > totalSlides) {
+                currentSlide = totalSlides;
+            }
+
+            updateSlideCarousel();
+            updateControlsForSlide();
+        }
+
+        function updateSlideDisplay() {
+            const slideInfo = document.querySelector('.mb-4.text-sm.text-gray-300');
+            const currentSlideData = slides[currentSlide - 1];
+
+            if (slideInfo && currentSlideData) {
+                slideInfo.innerHTML = `
+                    <span class="font-medium text-blue-300">${currentSlideData.name}</span>
+                    <span class="ml-2 text-xs bg-gray-700 px-2 py-1 rounded">${currentSlideData.type.toUpperCase()}</span>
+                `;
+            }
+        }
+
+        function updateControlsForSlide() {
+            const currentSlideData = slides[currentSlide - 1];
+            const controlsContainer = document.getElementById('oscilloscopeControls');
+            const startBtn = document.getElementById('oscilloscopeStartBtn');
+            const stopBtn = document.getElementById('oscilloscopeStopBtn');
+
+            if (currentSlideData.type === 'gpio') {
+                // GPIO Logic Analyzer controls - Show GPIO controls, hide serial
+                document.getElementById('gpioTimebaseControl').style.display = 'block';
+                document.getElementById('serialControlsContainer').style.display = 'none';
+                document.getElementById('gpioChannelControl').style.display = 'block';
+                document.getElementById('amplitudeControl').style.display = 'block';
+                document.getElementById('triggerButtonContainer').style.display = 'block';
+                // Set button states based on GPIO running state
+                if (gpioIsRunning) {
+                    if (startBtn) startBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = false;
+                } else {
+                    if (startBtn) startBtn.disabled = false;
+                    if (stopBtn) stopBtn.disabled = true;
+                }
+            } else if (currentSlideData.type === 'serial') {
+               // Serial Plot controls - Show serial controls, hide GPIO
+               document.getElementById('gpioTimebaseControl').style.display = 'none';
+               document.getElementById('serialControlsContainer').style.display = 'block';
+               document.getElementById('gpioChannelControl').style.display = 'none';
+               document.getElementById('amplitudeControl').style.display = 'none';
+               document.getElementById('triggerButtonContainer').style.display = 'none';
+
+               // Set button states based on current slide's active state
+               if (serialPlotData.active) {
+                   if (startBtn) startBtn.disabled = true;
+                   if (stopBtn) stopBtn.disabled = false;
+               } else {
+                   if (startBtn) startBtn.disabled = false;
+                   if (stopBtn) stopBtn.disabled = true;
+               }
+
+                // Clear and restore patterns container for this slide only
+                const patternsContainer = document.getElementById('patternsContainer');
+                if (patternsContainer) {
+                    patternsContainer.innerHTML = '';
+                    // Restore custom patterns for this specific slide
+                    if (window.serialPlotData.customPatterns && window.serialPlotData.customPatterns.length > 0) {
+                        window.serialPlotData.customPatterns.forEach(pattern => {
+                            const btn = document.createElement('button');
+                            btn.className = 'bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs hover:bg-blue-500/40 transition-colors';
+                            btn.innerHTML = `${pattern} <span class="ml-1 cursor-pointer">×</span>`;
+                            btn.onclick = function (e) {
+                                if (e.target.textContent === '×') {
+                                    window.serialPlotData.customPatterns = window.serialPlotData.customPatterns.filter(p => p !== pattern);
+                                    btn.remove();
+                                }
+                            };
+                            patternsContainer.appendChild(btn);
+                        });
+                    }
+                }
+
+                // Restore channel selections from slide-specific data
+                const selectElementCH1 = document.getElementById('serialValueSelectCH1');
+                const selectElementCH2 = document.getElementById('serialValueSelectCH2');
+                
+                if (selectElementCH1 && window.serialPlotData.ch1.selectedValue) {
+                    selectElementCH1.value = window.serialPlotData.ch1.selectedValue;
+                }
+                if (selectElementCH2 && window.serialPlotData.ch2.selectedValue) {
+                    selectElementCH2.value = window.serialPlotData.ch2.selectedValue;
+                }
+
+                // Initialize serial value detection
+                updateSerialValues();
+
+                // Setup custom format handlers
+                setupCustomFormatHandlers();
+
+                // Restore channel selections again after updateSerialValues (which rebuilds dropdowns)
+                setTimeout(() => {
+                    const selectElementCH1 = document.getElementById('serialValueSelectCH1');
+                    const selectElementCH2 = document.getElementById('serialValueSelectCH2');
+                    
+                    if (selectElementCH1 && window.serialPlotData.ch1.selectedValue) {
+                        selectElementCH1.value = window.serialPlotData.ch1.selectedValue;
+                        if (selectElementCH1.value && window.serialValuePatterns[selectElementCH1.value]) {
+                            window.serialPlotData.ch1.values = window.serialValuePatterns[selectElementCH1.value].values;
+                            window.serialPlotData.ch1.timestamps = window.serialValuePatterns[selectElementCH1.value].timestamps;
+                        }
+                    }
+                    if (selectElementCH2 && window.serialPlotData.ch2.selectedValue) {
+                        selectElementCH2.value = window.serialPlotData.ch2.selectedValue;
+                        if (selectElementCH2.value && window.serialValuePatterns[selectElementCH2.value]) {
+                            window.serialPlotData.ch2.values = window.serialValuePatterns[selectElementCH2.value].values;
+                            window.serialPlotData.ch2.timestamps = window.serialValuePatterns[selectElementCH2.value].timestamps;
+                        }
+                    }
+                }, 0);
+
+                // Setup timebase slider for serial plots
+                const serialControlsContainer = document.getElementById('serialControlsContainer');
+                if (serialControlsContainer) {
+                    const serialTimebaseSlider = serialControlsContainer.querySelector('input[type="range"]');
+                    if (serialTimebaseSlider) {
+                        // Restore timebase slider position
+                        const currentTimespan = window.serialPlotData.plotTimespan;
+                        const sliderValue = Math.log10(currentTimespan / 1000) * 50 + 50;
+                        serialTimebaseSlider.value = Math.max(0, Math.min(100, sliderValue));
+                        updateSerialTimebaseLabel(currentTimespan);
+
+                        serialTimebaseSlider.addEventListener('input', function () {
+                            const timebaseValue = parseInt(this.value);
+                            // Slider range 0-100 maps to timespan 100ms-10s logarithmically
+                            // At 0: 100ms, at 50: 1000ms (1s), at 100: 10000ms (10s)
+                            const timespan = Math.pow(10, (timebaseValue / 50) - 1) * 1000; // Convert to ms
+                            serialPlotData.plotTimespan = timespan;
+                            updateSerialTimebaseLabel(serialPlotData.plotTimespan);
+                            updateWaveformDisplay();
+                        });
+                    }
+                }
+
+                // Restart animation if plot was active
+                if (window.serialPlotData.active) {
+                    if (window.serialPlotData.animationFrameId) {
+                        cancelAnimationFrame(window.serialPlotData.animationFrameId);
+                    }
+                    animateSerialPlot();
+                }
+            }
+
+            updateWaveformDisplay();
+        }
+
+        function animateSerialPlot() {
+            // Continuous animation loop for smooth scrolling
+            if (!serialPlotData.active) {
+                serialPlotData.animationFrameId = null;
+                return;
+            }
+            
+            const currentSlideData = slides[currentSlide - 1];
+            if (currentSlideData && currentSlideData.type === 'serial') {
+                updateWaveformDisplay();
+            }
+            
+            // Schedule next frame for smooth 60fps rendering
+            serialPlotData.animationFrameId = requestAnimationFrame(animateSerialPlot);
+        }
+
+        function updateWaveformDisplay() {
+            const currentSlideData = slides[currentSlide - 1];
+            const svgElement = document.getElementById('waveformSvg');
+            const channelLabels = document.querySelector('.absolute.top-2.left-2.space-y-1');
+            const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
+
+            if (currentSlideData.type === 'gpio') {
+                // GPIO Logic Analyzer display
+                if (svgElement) {
+                    svgElement.innerHTML = `
+                        <!-- GPIO Digital Signals -->
+                        <path
+                            d="M 0 100 L 50 100 L 50 50 L 100 50 L 100 100 L 150 100 L 150 50 L 200 50 L 200 100 L 250 100 L 250 50 L 300 50 L 300 100 L 350 100 L 350 50 L 400 50 L 400 100 L 450 100 L 450 50 L 500 50"
+                            fill="none"
+                            stroke="#10B981"
+                            stroke-width="3"
+                            class="animate-pulse"
+                        />
+                        <path
+                            d="M 0 200 L 30 200 L 30 150 L 80 150 L 80 200 L 120 200 L 120 150 L 170 150 L 170 200 L 220 200 L 220 150 L 270 150 L 270 200 L 320 200 L 320 150 L 370 150 L 370 200 L 420 200 L 420 150 L 500 150"
+                            fill="none"
+                            stroke="#3B82F6"
+                            stroke-width="3"
+                            class="animate-pulse"
+                            style="animation-delay: 0.5s"
+                        />
+                    `;
+                }
+
+                if (channelLabels) {
+                    channelLabels.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-xs text-green-400">GPIO_0 (Digital)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                            <span class="text-xs text-blue-400">GPIO_1 (Digital)</span>
+                        </div>
+                    `;
+                }
+
+                if (measurements) {
+                    measurements.innerHTML = '';
+                }
+            } else if (currentSlideData.type === 'serial') {
+                // Serial Plot display
+                if (svgElement) {
+                    // Clear existing paths and text labels but keep the grid
+                    svgElement.querySelectorAll('path:not(.grid-pattern)').forEach(path => path.remove());
+                    svgElement.querySelectorAll('text').forEach(text => text.remove());
+
+                    // Get SVG dimensions
+                    const rect = svgElement.getBoundingClientRect();
+                    const width = rect.width;
+                    const height = rect.height;
+
+                    // Draw grid pattern if not exists
+                    if (!svgElement.querySelector('defs')) {
+                        svgElement.innerHTML = `
+            <defs>
+            <pattern id="smallGrid" width="20" height="20" patternUnits="userSpaceOnUse">
+                <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#374151" stroke-width="0.5"/>
+            </pattern>
+            <pattern id="grid" width="100" height="100" patternUnits="userSpaceOnUse">
+            <rect width="100" height="100" fill="url(#smallGrid)" />
+                <path d="M 100 0 L 0 0 0 100" fill="none" stroke="#4B5563" stroke-width="1"/>
+                </pattern>
+            </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" opacity="0.3" />
+                `;
+                    }
+
+                    // Draw serial plot for both channels
+                    drawSerialPlot(svgElement, width, height, channelLabels, measurements);
+                }
+
+                if (channelLabels) {
+                    channelLabels.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-purple-400 rounded-full"></div>
+                            <span class="text-xs text-purple-400">Serial_CH1 (Analog)</span>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                            <span class="text-xs text-yellow-400">Serial_CH2 (Analog)</span>
+                        </div>
+                    `;
+                }
+
+                if (measurements) {
+                    measurements.innerHTML = `
+                        <div class="text-purple-400">Peak: 4.2V</div>
+                        <div class="text-yellow-400">RMS: 2.1V</div>
+                        <div class="text-cyan-400">Sample Rate: 9600bps</div>
+                    `;
+                }
+            }
+        }
+
+        // Update the custom patterns list display
+        function updateCustomPatternsList() {
+            const container = document.getElementById('patternsContainer');
+            if (!container) return;
+
+            if (!window.serialPlotData.customPatterns || window.serialPlotData.customPatterns.length === 0) {
+                container.innerHTML = '<div class="text-xs text-gray-500 italic">No custom patterns yet</div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            window.serialPlotData.customPatterns.forEach((patternValue, idx) => {
+                const patternName = `Pattern${idx + 1}`;
+                
+                const patternItem = document.createElement('div');
+                patternItem.className = 'flex items-center gap-1 bg-white/5 rounded px-2 py-1 border border-white/10 whitespace-nowrap';
+                patternItem.innerHTML = `
+                    <div class="min-w-0">
+                        <div class="text-xs font-medium text-blue-300">${patternName}</div>
+                        <div class="text-xs text-gray-400 truncate max-w-[120px]">${patternValue}</div>
+                    </div>
+                    <button class="text-xs bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-1.5 py-0.5 transition-all duration-200 remove-pattern-btn flex-shrink-0" data-pattern-index="${idx}" title="Remove pattern">
+                        ✕
+                    </button>
+                `;
+                container.appendChild(patternItem);
+            });
+
+            // Attach remove event listeners
+            document.querySelectorAll('.remove-pattern-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const idx = parseInt(this.getAttribute('data-pattern-index'));
+                    const patternName = `Pattern${idx + 1}`;
+                    const confirmed = confirm(`Remove pattern "${patternName}"?`);
+                    if (confirmed) {
+                        window.serialPlotData.customPatterns.splice(idx, 1);
+                        delete window.serialValuePatterns[patternName];
+                        console.log('[PATTERN REMOVED]:', patternName);
+                        updateCustomPatternsList();
+                        updateSerialValues(true);
+                    }
+                });
+            });
+        }
+
+        // Setup custom format handlers with unified pattern support
+        function setupCustomFormatHandlers() {
+            // Setup add pattern button and input
+            const addPatternBtn = document.getElementById('addPatternBtn');
+            const patternInput = document.getElementById('patternInput');
+
+            if (addPatternBtn && patternInput) {
+                // Clear pattern input field when switching slides
+                patternInput.value = '';
+
+                // Clone and replace to remove all old event listeners
+                const newAddPatternBtn = addPatternBtn.cloneNode(true);
+                addPatternBtn.parentNode.replaceChild(newAddPatternBtn, addPatternBtn);
+                
+                const newPatternInput = patternInput.cloneNode(true);
+                patternInput.parentNode.replaceChild(newPatternInput, patternInput);
+
+                const addPattern = function () {
+                    const inputElement = document.getElementById('patternInput');
+                    const pattern = inputElement.value.trim();
+                    if (!pattern) {
+                        alert('Please enter a pattern');
+                        return;
+                    }
+
+                    // Check for duplicates in slide-specific patterns
+                    if (window.serialPlotData.customPatterns.some(p => p === pattern)) {
+                        alert('This pattern already exists');
+                        return;
+                    }
+
+                    // Add new pattern to slide-specific storage
+                    window.serialPlotData.customPatterns.push(pattern);
+
+                    console.log('[CUSTOM PATTERN] Added:', pattern);
+                    inputElement.value = ''; // Clear input
+                    inputElement.focus();
+
+                    // Update dropdowns and patterns list
+                    updateCustomPatternsList();
+                    updateSerialValues(true);
+                    
+                    // Trigger waveform update to display the new pattern
+                    updateWaveformDisplay();
+                };
+
+                // Get fresh references after cloning
+                const freshBtn = document.getElementById('addPatternBtn');
+                const freshInput = document.getElementById('patternInput');
+
+                freshBtn.addEventListener('click', addPattern);
+                freshInput.addEventListener('keypress', function (e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addPattern();
+                    }
+                });
+            }
+
+            // Initial display of custom patterns
+            updateCustomPatternsList();
+        }
+
+        // Parse value from serial data using custom format
+        function parseValueFromFormat(data, format) {
+            if (!format) return null;
+
+            // Replace {value} with a regex pattern to capture any number
+            const regexPattern = format
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') // Escape regex special chars
+                .replace(/\\{value\\}/g, '([+-]?\\d*\\.?\\d+)'); // Replace {value} with number capture
+
+            try {
+                const regex = new RegExp(regexPattern);
+                const match = data.match(regex);
+                if (match && match[1]) {
+                    return parseFloat(match[1]);
+                }
+            } catch (e) {
+                console.error('Invalid custom format pattern:', format, e);
+            }
+            return null;
+        }
+
+        // Serial value detection for plotting
+        function updateSerialValues(forceUpdate = false) {
+            // Ensure we're using the current slide's value patterns
+            getSlideValuePatterns();
+            
+            const selectElementCH1 = document.getElementById('serialValueSelectCH1');
+            const selectElementCH2 = document.getElementById('serialValueSelectCH2');
+
+            if (!selectElementCH1 || !selectElementCH2) return;
+
+            // Store current selections
+            const currentCH1 = serialPlotData.ch1.selectedValue;
+            const currentCH2 = serialPlotData.ch2.selectedValue;
+
+            // Get all available values and sort them
+            const values = Object.entries(window.serialValuePatterns).map(([name, info]) => ({
+                name: name,
+                lastValue: info.lastValue
+            })).sort((a, b) => a.name.localeCompare(b.name));
+
+            // Skip if no changes to available values and all current selections are valid
+            if (values.length === selectElementCH1.options.length - 1) {  // -1 for default option
+                const allSelectionsValid = (!currentCH1 || selectElementCH1.querySelector(`option[value="${currentCH1}"]`)) &&
+                    (!currentCH2 || selectElementCH2.querySelector(`option[value="${currentCH2}"]`));
+                if (allSelectionsValid) {
+                    return;
+                }
+            }
+
+            // Clear dropdowns
+            selectElementCH1.innerHTML = '';
+            selectElementCH2.innerHTML = '';
+
+            // Add default options
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'Select Value';
+            selectElementCH1.appendChild(defaultOption.cloneNode(true));
+            selectElementCH2.appendChild(defaultOption.cloneNode(true));
+
+            // Add sorted options to dropdowns with remove option for custom patterns
+            values.forEach(({ name, lastValue }) => {
+                const isCustomPattern = name.startsWith('Pattern');
+                const option = document.createElement('option');
+                option.value = name;
+                const removeText = isCustomPattern ? ' [remove: right-click]' : '';
+                option.textContent = `${name} (${lastValue.toFixed(2)})${removeText}`;
+                option.setAttribute('data-is-custom', isCustomPattern ? 'true' : 'false');
+
+                const option2 = option.cloneNode(true);
+
+                selectElementCH1.appendChild(option);
+                selectElementCH2.appendChild(option2);
+            });
+
+            // Add context menu to remove custom patterns
+            [selectElementCH1, selectElementCH2].forEach(selectElement => {
+                selectElement.addEventListener('contextmenu', function (e) {
+                    e.preventDefault();
+                    const selectedOption = this.options[this.selectedIndex];
+                    if (!selectedOption) return;
+
+                    const patternName = selectedOption.value;
+                    if (patternName && patternName.startsWith('Pattern')) {
+                        const confirmed = confirm(`Remove pattern "${patternName}"?`);
+                        if (confirmed) {
+                            // Find pattern by name and remove from slide-specific storage
+                            for (let i = 0; i < window.serialPlotData.customPatterns.length; i++) {
+                                if (`Pattern${i + 1}` === patternName) {
+                                    window.serialPlotData.customPatterns.splice(i, 1);
+                                    break;
+                                }
+                            }
+
+                            // Remove from serialValuePatterns
+                            delete window.serialValuePatterns[patternName];
+
+                            console.log('[PATTERN REMOVED]:', patternName);
+                            updateSerialValues(true);
+                        }
+                    }
+                });
+            });
+
+            // Restore previous selections if they still exist in the data
+            if (currentCH1 && window.serialValuePatterns[currentCH1]) {
+                selectElementCH1.value = currentCH1;
+            }
+            if (currentCH2 && window.serialValuePatterns[currentCH2]) {
+                selectElementCH2.value = currentCH2;
+            }
+
+            // Update value selections on change
+            selectElementCH1.onchange = function () {
+                serialPlotData.ch1.selectedValue = this.value;
+                if (this.value && window.serialValuePatterns[this.value]) {
+                    // Use direct reference to array - the animation loop will handle rendering
+                    // This prevents race conditions from array copying
+                    serialPlotData.ch1.valuePatternName = this.value;
+                }
+            };
+
+            selectElementCH2.onchange = function () {
+                serialPlotData.ch2.selectedValue = this.value;
+                if (this.value && window.serialValuePatterns[this.value]) {
+                    // Use direct reference to array - the animation loop will handle rendering
+                    // This prevents race conditions from array copying
+                    serialPlotData.ch2.valuePatternName = this.value;
+                }
+            };
+
+            // Get all available values and sort them
+            const availableValues = Object.entries(window.serialValuePatterns)
+                .map(([name, info]) => ({
+                    name,
+                    lastValue: info.lastValue
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name));
+
+            // Auto-select first two values if nothing is selected yet
+            if (!currentCH1 && !currentCH2 && values.length >= 2) {
+                // Auto-select first value for CH1
+                serialPlotData.ch1.selectedValue = values[0].name;
+                selectElementCH1.value = values[0].name;
+                serialPlotData.ch1.values = window.serialValuePatterns[values[0].name].values;
+                serialPlotData.ch1.timestamps = window.serialValuePatterns[values[0].name].timestamps;
+
+                // Auto-select second value for CH2
+                serialPlotData.ch2.selectedValue = values[1].name;
+                selectElementCH2.value = values[1].name;
+                serialPlotData.ch2.values = window.serialValuePatterns[values[1].name].values;
+                serialPlotData.ch2.timestamps = window.serialValuePatterns[values[1].name].timestamps;
+
+                console.log(`[AUTO-SELECT] CH1: ${values[0].name}, CH2: ${values[1].name}`);
+            } else if (!currentCH1 && values.length >= 1) {
+                // Auto-select first value for CH1 if only CH1 is empty
+                serialPlotData.ch1.selectedValue = values[0].name;
+                selectElementCH1.value = values[0].name;
+                serialPlotData.ch1.values = window.serialValuePatterns[values[0].name].values;
+                serialPlotData.ch1.timestamps = window.serialValuePatterns[values[0].name].timestamps;
+
+                console.log(`[AUTO-SELECT] CH1: ${values[0].name}`);
+            } else if (!currentCH2 && values.length >= 2) {
+                // Auto-select second value for CH2 if only CH2 is empty and we have at least 2 values
+                // Find the first value that's not selected in CH1
+                const ch2Value = values.find(v => v.name !== currentCH1);
+                if (ch2Value) {
+                    serialPlotData.ch2.selectedValue = ch2Value.name;
+                    selectElementCH2.value = ch2Value.name;
+                    serialPlotData.ch2.values = window.serialValuePatterns[ch2Value.name].values;
+                    serialPlotData.ch2.timestamps = window.serialValuePatterns[ch2Value.name].timestamps;
+
+                    console.log(`[AUTO-SELECT] CH2: ${ch2Value.name}`);
+                }
+            }
+
+            // Update both dropdowns
+            [
+                { select: selectElementCH1, current: currentCH1, channel: 'ch1' },
+                { select: selectElementCH2, current: currentCH2, channel: 'ch2' }
+            ].forEach(({ select, current, channel }) => {
+                // Clear dropdown
+                select.innerHTML = '';
+
+                // Add default option
+                const defaultOption = document.createElement('option');
+                defaultOption.value = '';
+                defaultOption.textContent = 'Select Value';
+                select.appendChild(defaultOption);
+
+                // Add all available values
+                availableValues.forEach(({ name, lastValue }) => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = `${name} (${lastValue.toFixed(2)})`;
+                    select.appendChild(option);
+                });
+
+                // Restore previous selection if it exists
+                if (current && window.serialValuePatterns[current]) {
+                    select.value = current;
+                    // Update the channel data
+                    serialPlotData[channel].values = [...window.serialValuePatterns[current].values];
+                    serialPlotData[channel].timestamps = [...window.serialValuePatterns[current].timestamps];
+                    serialPlotData[channel].minValue = Math.min(...window.serialValuePatterns[current].values);
+                    serialPlotData[channel].maxValue = Math.max(...window.serialValuePatterns[current].values);
+                }
+            });
+        }
+
+        // Global variables for detected values
+        window.serialValuePatterns = {};
+        window.detectedCommands = new Set();
+
+        // Serial plot buffers with value tracking
+        window.serialPlotData = {
+        ch1: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,  // Maximum points to store
+        minValue: Infinity,
+        maxValue: -Infinity,
+        scale: 1.0,
+        lockedMinValue: Infinity,  // Locked min for stable y-axis
+        lockedMaxValue: -Infinity   // Locked max for stable y-axis
+        },
+        ch2: {
+        values: [],
+        timestamps: [],
+        selectedValue: null,
+        customFormat: null,  // Custom format pattern for value extraction
+        maxPoints: 1000,
+        minValue: Infinity,
+        maxValue: -Infinity,
+        scale: 1.0,
+        lockedMinValue: Infinity,  // Locked min for stable y-axis
+        lockedMaxValue: -Infinity   // Locked max for stable y-axis
+        },
+        plotTimespan: 10000,  // 10 seconds default timespan
+        lastUpdate: 0,
+        lastDataTime: 0,      // Track last data arrival time
+        active: false,        // Flag to control plotting
+        updateInterval: null, // Store interval ID for updates
+             animationFrameId: null // Store animation frame ID for smooth scrolling
+         };
+
+        // Hub Controls Functions
+        function createHubControlUI(valueName, controlType) {
+            if (!socket || !socket.connected) {
+                alert('Not connected to server');
+                return;
+            }
+
+            socket.emit('create_hub_control', { name: valueName, type: controlType });
+        }
+
+        function renderHubControl(control) {
+            const controlsContainer = document.querySelector('.space-y-4');
+            if (!controlsContainer) return;
+
+            // Check if control already exists
+            const existingControl = document.getElementById(`control-${control.id}`);
+            if (existingControl) {
+                updateHubControlUI(control);
+                return;
+            }
+
+            // Create control element based on type
+            let controlElement = '';
+
+            if (control.type === 'slider') {
+                // For sliders: 1 dropdown for input command
+                const detectedValues = Object.keys(window.serialValuePatterns || {});
+                const commandOptions = detectedValues.length > 0 ?
+                    detectedValues.map(val => `<option value="${val}">${val}</option>`).join('') :
+                    '<option value="">No commands detected</option>';
+
+                controlElement = `
+                    <div id="control-${control.id}" class="bg-black/20 rounded-lg p-4 border border-white/5 animate-fadeIn">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">${control.name}</span>
+                                        <button onclick="deleteHubControl('${control.id}')" class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200">
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Current Value Display -->
+                            <div class="flex justify-center mb-2">
+                                <span id="value-${control.id}" class="text-2xl font-mono text-blue-400 font-bold">${control.config.min || 0}${control.config.unit ? ' ' + control.config.unit : ''}</span>
+                            </div>e
+
+                            <!-- Slider -->
+                            <input
+                                type="range"
+                                min="${control.config.min}"
+                                max="${control.config.max}"
+                                step="${control.config.step}"
+                                value="${control.config.min || 0}"
+                                oninput="updateSliderValue('${control.id}', this.value); sendControlCommand('${control.id}', this.value)"
+                                class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+                            />
+
+                            <!-- Min/Max Controls Inline -->
+                            <div class="flex justify-between items-center text-xs">
+                                <div class="flex items-center space-x-1">
+                                    <span class="text-gray-400">Min:</span>
+                                    <input
+                                        type="number"
+                                        value="${control.config.min}"
+                                        onchange="updateSliderRange('${control.id}', 'min', this.value)"
+                                        class="w-16 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                    >
+                                </div>
+                                <div class="flex items-center space-x-1">
+                                    <span class="text-gray-400">Max:</span>
+                                    <input
+                                        type="number"
+                                        value="${control.config.max}"
+                                        onchange="updateSliderRange('${control.id}', 'max', this.value)"
+                                        class="w-16 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                    >
+                                </div>
+                            </div>
+
+                            <!-- Command Template -->
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Command Template
+                                </label>
+                                <input
+                                    type="text"
+                                    value="${control.config.command_template || `${control.name}={value}`}"
+                                    onchange="updateControlCommand('${control.id}', this.value)"
+                                    class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors"
+                                    placeholder="e.g., servo={value}"
+                                >
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (control.type === 'toggle') {
+                // For toggles: 2 value inputs with dropdowns and confirm buttons
+                const detectedCommands = Array.from(window.detectedCommands || []);
+                const valueOptions = control.config.value_options || ['0', '1'];
+
+                controlElement = `
+                    <div id="control-${control.id}" class="bg-black/20 rounded-lg p-4 border border-white/5 animate-fadeIn">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">${control.name}</span>
+                                        <button onclick="deleteHubControl('${control.id}')" class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200">
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="flex justify-between items-center">
+                                <span class="text-sm text-gray-300">Status</span>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" onchange="sendToggleCommand('${control.id}', this.checked)" class="sr-only peer" />
+                                    <div class="w-11 h-6 bg-gray-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                </label>
+                            </div>
+
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Value Options
+                                </label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Value 1</label>
+                                    <div class="flex space-x-1">
+                                        <select id="val1-select-${control.id}" class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
+                                            <option value="${valueOptions[0]}" selected>${valueOptions[0]}</option>
+                                            ${detectedCommands.map(cmd => `<option value="${cmd}">${cmd}</option>`).join('')}
+                                        </select>
+                                        <input
+                                            type="text"
+                                            id="val1-custom-${control.id}"
+                                            placeholder="Custom..."
+                                            class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                            onkeypress="handleCustomValueKeypress(event, '${control.id}', 0)"
+                                        >
+                                        <button onclick="confirmToggleValue('${control.id}', 0)" class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs transition-all duration-200 flex-shrink-0">
+                                            ✓
+                                        </button>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-xs text-gray-500 mb-1">Value 2</label>
+                                    <div class="flex space-x-1">
+                                        <select id="val2-select-${control.id}" class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none overflow-hidden text-ellipsis">
+                                            <option value="${valueOptions[1]}" selected>${valueOptions[1]}</option>
+                                            ${detectedCommands.map(cmd => `<option value="${cmd}">${cmd}</option>`).join('')}
+                                        </select>
+                                        <input
+                                            type="text"
+                                            id="val2-custom-${control.id}"
+                                            placeholder="Custom..."
+                                            class="flex-1 min-w-0 max-w-20 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none"
+                                            onkeypress="handleCustomValueKeypress(event, '${control.id}', 1)"
+                                        >
+                                        <button onclick="confirmToggleValue('${control.id}', 1)" class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs transition-all duration-200 flex-shrink-0">
+                                            ✓
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            } else if (control.type === 'reader') {
+                // For readers: Display-only controls that show current values
+                controlElement = `
+                    <div id="control-${control.id}" class="bg-black/20 rounded-lg p-4 border border-white/5 animate-fadeIn">
+                        <div class="space-y-3">
+                            <div class="flex justify-between items-start">
+                                <div class="flex-1">
+                                    <div class="flex items-center justify-between mb-1">
+                                        <span class="font-medium text-white">${control.name}</span>
+                                        <button onclick="deleteHubControl('${control.id}')" class="bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded px-2 py-1 text-xs transition-all duration-200">
+                                            ✕
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Current Value Display -->
+                            <div class="flex justify-center mb-2">
+                                <span id="value-${control.id}" class="text-2xl font-mono text-green-400 font-bold">--${control.config.unit ? ' ' + control.config.unit : ''}</span>
+                            </div>
+
+                            <!-- Reader indicator -->
+                            <div class="flex justify-center">
+                                <div class="flex items-center space-x-2 text-sm text-gray-400">
+                                    <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                    <span>Reading</span>
+                                </div>
+                            </div>
+
+                            <!-- Command Template with confirmation -->
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Read Command Pattern
+                                </label>
+                                <div class="flex space-x-2">
+                                    <input
+                                        type="text"
+                                        id="cmd-${control.id}"
+                                        value="${control.config.command_template || '{value}RPM'}"
+                                        class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors"
+                                        placeholder="e.g., {value}RPM"
+                                    >
+                                    <button
+                                        onclick="confirmReaderCommand('${control.id}')"
+                                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 text-sm transition-all duration-200 flex-shrink-0"
+                                        title="Save command"
+                                    >
+                                        ✓
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Insert before the existing static controls
+            const staticControls = controlsContainer.querySelectorAll('.bg-black\\/20');
+            if (staticControls.length > 0) {
+                staticControls[0].insertAdjacentHTML('beforebegin', controlElement);
+            } else {
+                controlsContainer.insertAdjacentHTML('afterbegin', controlElement);
+            }
+
+            // If this is a reader control, auto-focus its command input so the user can
+            // immediately paste/type the read pattern and confirm.
+            if (control.type === 'reader') {
+                setTimeout(() => {
+                    const cmdInput = document.getElementById(`cmd-${control.id}`);
+                    if (cmdInput) {
+                        cmdInput.focus();
+                        cmdInput.select();
+                    }
+                }, 100);
+            }
+        }
+
+        function updateHubControlUI(control) {
+            const controlElement = document.getElementById(`control-${control.id}`);
+            if (!controlElement) return;
+
+            // Update value display if it exists
+            const valueDisplay = controlElement.querySelector(`#value-${control.id}`);
+            if (valueDisplay && control.current_value !== undefined) {
+                valueDisplay.textContent = control.current_value;
+            }
+
+            // Update slider value if it exists
+            const slider = controlElement.querySelector('input[type="range"]');
+            if (slider && control.current_value !== undefined) {
+                slider.value = control.current_value;
+            }
+        }
+
+        function clearAllHubControls() {
+            // Clear all hub controls from the UI
+            const controlsContainer = document.querySelector('.space-y-4');
+            if (controlsContainer) {
+                // Remove all dynamically added controls (keep the static "Add Control" button)
+                const dynamicControls = controlsContainer.querySelectorAll('[id^="control-"]');
+                dynamicControls.forEach(control => control.remove());
+            }
+
+            // Clear local hub controls array
+            hubControls.length = 0;
+        }
+
+        function removeHubControlUI(controlId) {
+            const controlElement = document.getElementById(`control-${controlId}`);
+            if (controlElement) {
+                controlElement.remove();
+            }
+
+            // Also remove from local hubControls array to prevent re-rendering
+            const controlIndex = hubControls.findIndex(control => control.id === controlId);
+            if (controlIndex !== -1) {
+                hubControls.splice(controlIndex, 1);
+            }
+        }
+
+        function sendControlCommand(controlId, value) {
+            if (!socket || !socket.connected) {
+                alert('Not connected to server');
+                return;
+            }
+
+            socket.emit('send_control_command', { id: controlId, value: value });
+        }
+
+        function sendToggleCommand(controlId, isChecked) {
+            if (!socket || !socket.connected) {
+                alert('Not connected to server');
+                return;
+            }
+
+            const control = hubControls.find(c => c.id === controlId);
+            if (!control) return;
+
+            const valueOptions = control.config.value_options || ['0', '1'];
+            const value = isChecked ? valueOptions[1] : valueOptions[0];
+
+            socket.emit('send_control_command', { id: controlId, value: value });
+        }
+
+        function updateControlValueDisplay(controlId, value) {
+            const valueDisplay = document.getElementById(`value-${controlId}`);
+            if (valueDisplay) {
+                valueDisplay.textContent = value;
+            }
+        }
+
+        function updateControlScale(controlId, type, value) {
+            if (!socket || !socket.connected) return;
+
+            const control = hubControls.find(c => c.id === controlId);
+            if (!control) return;
+
+            const updateData = { id: controlId, config: {} };
+            updateData.config[type] = parseFloat(value) || 0;
+
+            socket.emit('update_hub_control', updateData);
+        }
+
+        function updateControlCommand(controlId, commandName, isReader = false) {
+            if (!socket || !socket.connected) {
+                console.warn('Socket not connected - will still attempt REST update');
+            }
+
+            const control = hubControls.find(c => c.id === controlId);
+            if (!control) {
+                console.warn('Control not found locally for update:', controlId);
+            }
+
+            // For reader controls, ensure we don't modify the value format if it contains {value}
+            let template = commandName;
+            if (!isReader && !commandName.includes('{value}')) {
+                template = `${commandName}={value}`;
+            }
+
+            const updateData = { id: controlId, config: {} };
+            updateData.config['command_template'] = template;
+
+            // Emit via SocketIO if available
+            try {
+                if (socket && socket.connected) {
+                    socket.emit('update_hub_control', updateData);
+                    console.log('Sent update_hub_control via socket:', updateData);
+                }
+            } catch (e) {
+                console.warn('Socket emit failed, will try REST fallback', e);
+            }
+
+            // Also send a REST fallback to ensure backend receives the update
+            fetch(`/hub/controls/${controlId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: { command_template: template } })
+            }).then(resp => {
+                if (!resp.ok) {
+                    return resp.text().then(t => { throw new Error(t || resp.statusText); });
+                }
+                return resp.json();
+            }).then(json => {
+                console.log('REST update_hub_control response:', json);
+            }).catch(err => {
+                console.warn('REST fallback failed to update control:', err);
+            });
+        }
+
+        function confirmReaderCommand(controlId) {
+            const commandInput = document.getElementById(`cmd-${controlId}`);
+            if (!commandInput) return;
+
+            const command = commandInput.value.trim();
+            if (!command) {
+                alert('Please enter a read command pattern');
+                return;
+            }
+
+            // Validate that the command includes {value}
+            if (!command.includes('{value}')) {
+                alert('Command pattern must include {value} placeholder');
+                return;
+            }
+
+            // Update the command template
+            console.log('Confirming reader command for', controlId, command);
+            updateControlCommand(controlId, command, true);
+
+            // Also mark the input visually as saved (optimistic)
+            const button = commandInput.nextElementSibling;
+            if (button) {
+                const originalBg = button.className;
+                button.className = button.className.replace('bg-blue-500', 'bg-green-500');
+                setTimeout(() => {
+                    button.className = originalBg;
+                }, 1000);
+            }
+        }
+
+        function handleCustomValueKeypress(event, controlId, index) {
+            if (event.key === 'Enter') {
+                confirmToggleValue(controlId, index);
+            }
+        }
+
+        function confirmToggleValue(controlId, index) {
+            const selectElement = document.getElementById(`val${index + 1}-select-${controlId}`);
+            const customInput = document.getElementById(`val${index + 1}-custom-${controlId}`);
+
+            let selectedValue = '';
+
+            // Check if there's a value in the custom input first
+            if (customInput && customInput.value.trim()) {
+                selectedValue = customInput.value.trim();
+
+                // Add the custom value to the dropdown if it's not already there
+                if (selectElement) {
+                    let optionExists = false;
+                    for (let i = 0; i < selectElement.options.length; i++) {
+                        if (selectElement.options[i].value === selectedValue) {
+                            optionExists = true;
+                            break;
+                        }
+                    }
+
+                    if (!optionExists) {
+                        const newOption = document.createElement('option');
+                        newOption.value = selectedValue;
+                        newOption.textContent = selectedValue;
+                        selectElement.appendChild(newOption);
+                    }
+
+                    // Select the value in the dropdown
+                    selectElement.value = selectedValue;
+                }
+
+                customInput.value = ''; // Clear after use
+            } else if (selectElement && selectElement.value) {
+                selectedValue = selectElement.value;
+            }
+
+            if (!selectedValue) return;
+
+            updateToggleValue(controlId, index, selectedValue);
+        }
+
+
+
+        function updateToggleValue(controlId, index, value) {
+            if (!socket || !socket.connected) return;
+
+            const control = hubControls.find(c => c.id === controlId);
+            if (!control) return;
+
+            // Update local control object immediately
+            if (!control.config.value_options) {
+                control.config.value_options = ['0', '1'];
+            }
+            control.config.value_options[index] = value;
+
+            const updateData = { id: controlId, config: {} };
+            updateData.config['value_options'] = control.config.value_options;
+
+            socket.emit('update_hub_control', updateData);
+        }
+
+        function updateSliderValue(controlId, value) {
+            // Update the displayed value in real-time
+            const valueDisplay = document.getElementById(`value-${controlId}`);
+            if (valueDisplay) {
+                const control = hubControls.find(c => c.id === controlId);
+                const unit = control && control.config.unit ? ' ' + control.config.unit : '';
+                valueDisplay.textContent = value + unit;
+            }
+        }
+
+        function updateSliderRange(controlId, type, value) {
+            if (!socket || !socket.connected) return;
+
+            const control = hubControls.find(c => c.id === controlId);
+            if (!control) return;
+
+            // Update the slider's min/max attributes
+            const slider = document.querySelector(`#control-${controlId} input[type="range"]`);
+            if (slider) {
+                slider.setAttribute(type, value);
+                // Update the control config
+                control.config[type] = parseFloat(value) || 0;
+            }
+
+            // Send update to server
+            const updateData = { id: controlId, config: {} };
+            updateData.config[type] = parseFloat(value) || 0;
+
+            socket.emit('update_hub_control', updateData);
+        }
+
+        function deleteHubControl(controlId) {
+            if (!socket || !socket.connected) {
+                alert('Not connected to server');
+                return;
+            }
+
+            // Check if control exists in our local array
+            const controlExists = hubControls.some(c => c.id === controlId);
+            if (!controlExists) {
+                // Control not found locally, but attempting deletion anyway
+            }
+
+            if (confirm('Are you sure you want to delete this control?')) {
+                socket.emit('delete_hub_control', { id: controlId });
+            }
+        }
+
+        function setupHubControls() {
+            // Add Control button
+            const addControlBtn = document.querySelector('.bg-purple-500\\/20');
+            if (addControlBtn) {
+                addControlBtn.addEventListener('click', function () {
+                    showAddControlModal();
+                });
+            }
+
+            // Load existing controls on page load
+            fetch('/hub/controls')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.controls && data.controls.length > 0) {
+                        data.controls.forEach(control => {
+                            hubControls.push(control);
+                            renderHubControl(control);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading hub controls:', error);
+                });
+        }
+
+        function showAddControlModal() {
+            // Create modal overlay
+            const modal = document.createElement('div');
+            modal.className = 'fixed inset-0 bg-black/50 flex items-center justify-center z-50';
+            modal.innerHTML = `
+                <div class="bg-gray-800 rounded-xl p-6 max-w-md w-full mx-4 border border-white/10">
+                    <h3 class="text-xl font-semibold mb-4 text-white">Add New Control</h3>
+
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium mb-2 text-gray-300">
+                                Control Name
+                            </label>
+                            <input
+                                type="text"
+                                id="controlNameInput"
+                                placeholder="Enter control name..."
+                                class="w-full bg-black/30 border border-white/20 rounded px-3 py-2 focus:border-blue-400 focus:outline-none transition-colors"
+                            />
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-2 text-gray-300">
+                                Control Type
+                            </label>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button
+                                    onclick="selectControlType('slider')"
+                                    class="control-type-btn bg-black/30 border border-white/20 rounded px-3 py-2 text-sm hover:border-blue-400 transition-colors"
+                                    data-type="slider"
+                                >
+                                    Slider
+                                </button>
+                                <button
+                                    onclick="selectControlType('toggle')"
+                                    class="control-type-btn bg-black/30 border border-white/20 rounded px-3 py-2 text-sm hover:border-blue-400 transition-colors"
+                                    data-type="toggle"
+                                >
+                                    Toggle
+                                </button>
+                                <button
+                                    onclick="selectControlType('reader')"
+                                    class="control-type-btn bg-black/30 border border-white/20 rounded px-3 py-2 text-sm hover:border-blue-400 transition-colors"
+                                    data-type="reader"
+                                >
+                                    Reader
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Note: Reader-specific format selection removed.
+                             Readers can be created immediately and the command/template
+                             can be edited on the created control's UI (cmd-<id> input).
+                        -->
+                    </div>
+
+                    <div class="flex justify-end space-x-3 mt-6">
+                        <button
+                            onclick="closeAddControlModal()"
+                            class="px-4 py-2 bg-gray-600/20 hover:bg-gray-600/30 border border-gray-600/50 rounded-lg transition-all duration-200"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            id="createControlBtn"
+                            onclick="createControlFromModal()"
+                            class="px-4 py-2 bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg transition-all duration-200"
+                            disabled
+                        >
+                            Create Control
+                        </button>
+                    </div>
+                </div>
+            `;
+
+            document.body.appendChild(modal);
+
+            // Focus on name input
+            setTimeout(() => {
+                const nameInput = document.getElementById('controlNameInput');
+                if (nameInput) nameInput.focus();
+            }, 100);
+        }
+
+        function selectControlType(type) {
+            // Remove previous selection
+            document.querySelectorAll('.control-type-btn').forEach(btn => {
+                btn.classList.remove('border-blue-400', 'bg-blue-500/20');
+                btn.classList.add('border-white/20', 'bg-black/30');
+            });
+
+            // Add selection to clicked button
+            const selectedBtn = document.querySelector(`[data-type="${type}"]`);
+            if (selectedBtn) {
+                selectedBtn.classList.remove('border-white/20', 'bg-black/30');
+                selectedBtn.classList.add('border-blue-400', 'bg-blue-500/20');
+            }
+
+            // Store selected type
+            window.selectedControlType = type;
+
+            // No pre-add reader format selection anymore. Readers are created immediately
+            // and the command template can be edited after creation via the control UI.
+            window.selectedReaderFormat = null;
+
+            // Enable create button if name is entered
+            updateCreateButtonState();
+        }
+
+        function updateCreateButtonState() {
+            const nameInput = document.getElementById('controlNameInput');
+            const createBtn = document.getElementById('createControlBtn');
+            const name = nameInput ? nameInput.value.trim() : '';
+            const typeSelected = window.selectedControlType;
+
+            // Basic validation: name and type required. Reader formats are configured
+            // after creation via the control's command input so no extra validation
+            // is required here.
+            const isValid = Boolean(name && typeSelected);
+
+            if (createBtn) {
+                createBtn.disabled = !isValid;
+            }
+        }
+
+        // Reader pre-add format selection removed; readers are created immediately
+        // and configured after creation using the control UI inputs.
+
+        function createControlFromModal() {
+            const nameInput = document.getElementById('controlNameInput');
+            const controlName = nameInput ? nameInput.value.trim() : '';
+            const controlType = window.selectedControlType;
+
+            if (!controlName || !controlType) {
+                return;
+            }
+
+            // Check if control with same name already exists
+            const existingControl = hubControls.find(control =>
+                control.name.toLowerCase() === controlName.toLowerCase()
+            );
+
+            if (existingControl) {
+                alert(`A control with the name "${controlName}" already exists. Please choose a different name.`);
+                return;
+            }
+
+            // Close modal
+            closeAddControlModal();
+
+            // Create control with type. Reader-specific format/command can be
+            // configured after the control is created using its UI.
+            createHubControlUI(controlName, controlType);
+        }
+
+        function closeAddControlModal() {
+            const modal = document.querySelector('.fixed.inset-0.bg-black\\/50');
+            if (modal) {
+                modal.remove();
+            }
+            window.selectedControlType = null;
+        }
+
+        // Listen for Enter key in modal
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                const modal = document.querySelector('.fixed.inset-0.bg-black\\/50');
+                if (modal) {
+                    const createBtn = document.getElementById('createControlBtn');
+                    if (createBtn && !createBtn.disabled) {
+                        createControlFromModal();
+                    }
+                }
+            } else if (e.key === 'Escape') {
+                closeAddControlModal();
+            }
+        });
+
+        // Update create button state when typing
+        document.addEventListener('input', function (e) {
+            if (e.target.id === 'controlNameInput') {
+                updateCreateButtonState();
+            }
+        });
+
+        // Oscilloscope control functions
+        function setupOscilloscopeControls() {
+            let startBtn = document.getElementById('oscilloscopeStartBtn');
+            let stopBtn = document.getElementById('oscilloscopeStopBtn');
+            const clearBtn = document.getElementById('oscilloscopeClearBtn');
+
+            // Remove existing event listeners to prevent multiple listeners on same button
+            if (startBtn) {
+                const newStartBtn = startBtn.cloneNode(true);
+                startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+                startBtn = document.getElementById('oscilloscopeStartBtn');
+            }
+            if (stopBtn) {
+                const newStopBtn = stopBtn.cloneNode(true);
+                stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+                stopBtn = document.getElementById('oscilloscopeStopBtn');
+            }
+
+            // Start button
+            if (startBtn) {
+                startBtn.addEventListener('click', function () {
+                    if (!socket || !socket.connected) {
+                        alert('Not connected to server');
+                        return;
+                    }
+
+                    const currentSlideData = slides[currentSlide - 1];
+                    if (!currentSlideData) return;
+
+                    if (currentSlideData.type === 'gpio') {
+                        // Start GPIO Logic Analyzer
+                        fetch('/logic/start', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'started') {
+                                    gpioIsRunning = true;
+                                    currentSlideData.active = true;
+                                    startBtn.disabled = true;
+                                    stopBtn.disabled = false;
+                                } else {
+                                    alert('Failed to start logic analyzer: ' + (data.message || 'Unknown error'));
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error starting logic analyzer:', error);
+                                alert('Failed to start logic analyzer');
+                            });
+                    } else if (currentSlideData.type === 'serial') {
+                        // Start Serial Plot - use the current slide's plotData
+                        const slideData = currentSlideData.plotData || window.serialPlotData;
+                        const hasCH1 = serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat;
+                        const hasCH2 = serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat;
+
+                        if (!hasCH1 && !hasCH2) {
+                            alert('Please select at least one value to plot or enter a custom format');
+                            return;
+                        }
+
+                        // Clear existing data but preserve selectedValue and customFormat
+                        ['ch1', 'ch2'].forEach(channel => {
+                            serialPlotData[channel] = {
+                                values: [],
+                                timestamps: [],
+                                selectedValue: serialPlotData[channel].selectedValue,
+                                customFormat: serialPlotData[channel].customFormat,
+                                maxPoints: serialPlotData[channel].maxPoints,
+                                minValue: Infinity,
+                                maxValue: -Infinity,
+                                scale: 1.0,
+                                lockedMinValue: Infinity,  // Reset locked axes
+                                lockedMaxValue: -Infinity
+                            };
+                        });
+
+                        // Enable automatic plotting updates for this slide only
+                        serialPlotData.active = true;
+                        startBtn.disabled = true;
+                        stopBtn.disabled = false;
+
+                        // Start smooth animation loop for 60fps rendering
+                        if (!serialPlotData.animationFrameId) {
+                            serialPlotData.animationFrameId = requestAnimationFrame(animateSerialPlot);
+                        }
+                    }
+                });
+            }
+
+            // Stop button
+            if (stopBtn) {
+                stopBtn.addEventListener('click', function () {
+                    if (!socket || !socket.connected) {
+                        alert('Not connected to server');
+                        return;
+                    }
+
+                    const currentSlideData = slides[currentSlide - 1];
+                    if (!currentSlideData) return;
+
+                    if (currentSlideData.type === 'gpio') {
+                        // Stop GPIO Logic Analyzer
+                        fetch('/logic/stop', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'stopped') {
+                                    gpioIsRunning = false;
+                                    currentSlideData.active = false;
+                                    startBtn.disabled = false;
+                                    stopBtn.disabled = true;
+                                } else {
+                                    alert('Failed to stop logic analyzer: ' + (data.message || 'Unknown error'));
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error stopping logic analyzer:', error);
+                                alert('Failed to stop logic analyzer');
+                            });
+                    } else if (currentSlideData.type === 'serial') {
+                        // Stop Serial Plot - only affects current slide
+                        serialPlotData.active = false;
+                        if (serialPlotData.animationFrameId) {
+                            cancelAnimationFrame(serialPlotData.animationFrameId);
+                            serialPlotData.animationFrameId = null;
+                        }
+                        startBtn.disabled = false;
+                        stopBtn.disabled = true;
+                    }
+                });
+            }
+
+            // Clear button
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function () {
+                    if (socket && socket.connected) {
+                        fetch('/logic/clear', { method: 'POST' })
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.status === 'cleared') {
+                                    // Reset the display to show empty waveforms
+                                    resetOscilloscopeDisplay();
+                                } else {
+                                    alert('Failed to clear logic analyzer data');
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Error clearing logic analyzer:', error);
+                                alert('Failed to clear logic analyzer data');
+                            });
+                    } else {
+                        alert('Not connected to server');
+                    }
+                });
+            }
+
+            // Trigger Toggle button
+            const triggerToggleBtn = document.getElementById('triggerToggleBtn');
+            let triggerEnabled = false;
+
+            if (triggerToggleBtn) {
+                triggerToggleBtn.addEventListener('click', function () {
+                    if (!socket || !socket.connected) {
+                        alert('Not connected to server');
+                        return;
+                    }
+
+                    if (triggerEnabled) {
+                         // Disable trigger
+                         fetch('/logic/trigger/disable', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' }
+                         })
+                             .then(response => response.json())
+                             .then(data => {
+                                 if (data.status === 'trigger_disabled') {
+                                     triggerEnabled = false;
+                                     triggerToggleBtn.textContent = 'Enable Trigger';
+                                     triggerToggleBtn.style.opacity = '1';
+                                     console.log('Trigger disabled:', data.message);
+                                 } else {
+                                     alert('Failed to disable trigger: ' + (data.message || 'Unknown error'));
+                                 }
+                             })
+                             .catch(error => {
+                                 console.error('Error disabling trigger:', error);
+                                 alert('Failed to disable trigger');
+                             });
+                     } else {
+                         // Enable trigger
+                         const channel = 'ch1'; // Default to CH1
+                         const edge = 'rising'; // Default to rising edge
+
+                         fetch('/logic/trigger/enable', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({ channel: channel, edge: edge })
+                         })
+                             .then(response => response.json())
+                             .then(data => {
+                                 if (data.status === 'trigger_enabled') {
+                                     triggerEnabled = true;
+                                     triggerToggleBtn.textContent = 'Disable Trigger';
+                                     triggerToggleBtn.style.opacity = '0.8';
+                                     console.log('Trigger enabled:', data.message);
+                                 } else {
+                                     alert('Failed to enable trigger: ' + (data.message || 'Unknown error'));
+                                 }
+                             })
+                             .catch(error => {
+                                 console.error('Error enabling trigger:', error);
+                                 alert('Failed to enable trigger');
+                             });
+                     }
+                });
+            }
+
+
+
+            // Timebase control for GPIO plots
+             const gpioTimebaseSlider = document.querySelector('#gpioTimebaseControl input[type="range"]');
+             if (gpioTimebaseSlider) {
+                 gpioTimebaseSlider.addEventListener('input', function () {
+                     const timebaseValue = this.value;
+                     const currentSlideData = slides[currentSlide - 1];
+
+                     // Only handle GPIO (serial is handled separately in updateControlsForSlide)
+                     if (currentSlideData && currentSlideData.type === 'gpio') {
+                         // GPIO: Convert slider value to timebase using logarithmic scale
+                         // Range: 0.00001 (10µs) to 1 (1s)
+                         // Slider: 0-100
+                         const timebase = Math.pow(10, (timebaseValue / 100) * 5 - 5); // 10^(-5 to 0)
+                         updateGpioTimebaseLabel(timebase);
+
+                         if (socket && socket.connected) {
+                             fetch('/logic/config', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ timebase: timebase })
+                             }).catch(error => console.error('Error updating timebase:', error));
+                         }
+                     }
+                 });
+             }
+
+             // Amplitude control for GPIO plots
+             const amplitudeSlider = document.querySelector('#amplitudeControl input[type="range"]');
+             if (amplitudeSlider) {
+                 amplitudeSlider.addEventListener('input', function () {
+                     const amplitudeValue = parseInt(this.value);
+                     const currentSlideData = slides[currentSlide - 1];
+
+                     // Only handle GPIO in setupOscilloscopeControls
+                     if (currentSlideData && currentSlideData.type === 'gpio') {
+                         // Convert slider value (0-100) to amplitude scale (0.1 to 10.0)
+                         // Logarithmic scale: 0 -> 0.1, 50 -> 1.0, 100 -> 10.0
+                         const amplitudeScale = Math.pow(10, (amplitudeValue / 50) - 1); // 10^(-1 to 1)
+                         updateAmplitudeLabel(amplitudeScale);
+
+                         if (socket && socket.connected) {
+                             fetch('/logic/config', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ amplitude_scale: amplitudeScale })
+                             }).catch(error => console.error('Error updating amplitude scale:', error));
+                         }
+                     }
+                 });
+             }
+
+             // Channel selection
+            const channelSelect = document.querySelector('#gpioChannelControl select');
+            if (channelSelect) {
+                channelSelect.addEventListener('change', function () {
+                    const channelMode = this.value.toLowerCase(); // 'channel 1', 'channel 2', 'both' -> 'ch1', 'ch2', 'both'
+
+                    let mode = 'both';
+                    if (channelMode.includes('1')) mode = 'ch1';
+                    else if (channelMode.includes('2')) mode = 'ch2';
+
+                    if (socket && socket.connected) {
+                        fetch('/logic/config', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ channel_mode: mode })
+                        }).catch(error => console.error('Error updating channel mode:', error));
+                    }
+                });
+            }
+
+            // Serial value selection handlers
+            const setupSerialValueSelect = (channelId) => {
+                const select = document.getElementById(`serialValueSelectCH${channelId}`);
+                if (select) {
+                    select.addEventListener('change', function () {
+                        const selectedValue = this.value;
+                        const channel = `ch${channelId}`;
+
+                        // Reset channel data when changing selected value
+                        serialPlotData[channel] = {
+                            values: [],
+                            timestamps: [],
+                            selectedValue: selectedValue,
+                            maxPoints: serialPlotData[channel].maxPoints,
+                            minValue: Infinity,
+                            maxValue: -Infinity,
+                            scale: 1.0
+                        };
+
+                        // Update plot immediately
+                        updateWaveformDisplay();
+                    });
+                }
+            };
+
+            // Setup handlers for both channels
+            setupSerialValueSelect(1);
+            setupSerialValueSelect(2);
+        }
+
+        function updateGpioTimebaseLabel(timebase) {
+             const label = document.querySelector('#gpioTimebaseControl label');
+             if (label) {
+                 let unit = 's/div';
+                 let value = timebase;
+                 if (timebase < 0.00001) {
+                     value = timebase * 1000000;
+                     unit = 'µs/div';
+                 } else if (timebase < 0.001) {
+                     value = timebase * 1000000;
+                     unit = 'µs/div';
+                 } else if (timebase < 1) {
+                     value = timebase * 1000;
+                     unit = 'ms/div';
+                 }
+                 label.textContent = `Time-base: ${value.toFixed(2)}${unit}`;
+             }
+         }
+
+         function updateAmplitudeLabel(scale) {
+             const label = document.querySelector('#amplitudeControl label');
+             if (label) {
+                 label.textContent = `Amplitude: ${scale.toFixed(1)}x`;
+             }
+         }
+
+        function updateSerialTimebaseLabel(timespan) {
+             const label = document.getElementById('serialTimebaseLabel');
+             if (label) {
+                 let unit = 'ms';
+                 let value = timespan;
+                 if (timespan >= 1000) {
+                     value = timespan / 1000;
+                     unit = 's';
+                 } else if (timespan >= 100) {
+                     value = Math.round(timespan);
+                     unit = 'ms';
+                 }
+                 const decimals = unit === 's' ? 2 : 0;
+                 label.textContent = `Time-base: ${value.toFixed(decimals)}${unit}`;
+             }
+         }
+
+        function updateOscilloscopeDisplay(data) {
+            const svgElement = document.getElementById('waveformSvg');
+            const channelLabels = document.querySelector('.absolute.top-2.left-2.space-y-1');
+            const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
+
+            if (!svgElement || !data) return;
+
+            // Clear existing paths but keep the grid
+            // Remove all path elements (waveforms) but keep defs and rect (grid)
+            const paths = svgElement.querySelectorAll('path:not(.grid-pattern)');
+            paths.forEach(path => path.remove());
+
+            // Get actual display dimensions from the SVG element
+             const rect = svgElement.getBoundingClientRect();
+             const width = rect.width;
+             const height = rect.height;
+
+             // Scale factors - adjust for digital signals (+1/-1 range)
+             // xScale: Each sample should span pixels proportional to its time duration
+             // timebase tells us seconds per division (e.g., 10µs/div, 1ms/div, 1s/div)
+             // 10 divisions fit on screen
+             // So total time window = timebase * 10
+             // pixels per division = (width - 20) / 10
+             // This is independent of sample count
+             const pixelsPerDivision = (width - 20) / 10;
+             const secondsPerDivision = data.timebase;
+             const pixelsPerSecond = pixelsPerDivision / secondsPerDivision;
+             
+             // Each sample spans 1/sampling_rate seconds
+             const secondsPerSample = 1 / data.sampling_rate;
+             const xScale = pixelsPerSecond * secondsPerSample;
+             
+             const yScale = height / 8; // Scale for +/- 1V digital signals - eighth height for optimal visibility
+
+            // Create path for CH1
+            if (data.ch1_data && data.ch1_data.length > 0 && (data.channel_mode === 'both' || data.channel_mode === 'ch1')) {
+                let pathData = '';
+                let lastY = null;
+
+                data.ch1_data.forEach((value, index) => {
+                     const x = index * xScale;
+                     // Digital signal values are -1, 0, 1 (from GPIO differential)
+                     // Expand/contract symmetrically around center with amplitude scale
+                     const scaled = value * data.scale; // value is already -1 to 1, apply amplitude scaling
+                     const y = height / 2 - (scaled * yScale); // Apply to screen coordinates (inverted Y)
+
+                     if (index === 0) {
+                         pathData = `M ${x} ${y}`;
+                         lastY = y;
+                     } else {
+                         // Create horizontal line at previous level, then vertical transition
+                         pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                         lastY = y;
+                     }
+                 });
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#10B981');
+                path.setAttribute('stroke-width', '3');
+                path.classList.add('animate-pulse');
+                svgElement.appendChild(path);
+            }
+
+            // Create path for CH2
+            if (data.ch2_data && data.ch2_data.length > 0 && (data.channel_mode === 'both' || data.channel_mode === 'ch2')) {
+                let pathData = '';
+                let lastY = null;
+
+                data.ch2_data.forEach((value, index) => {
+                     const x = index * xScale;
+                     // Digital signal values are -1, 0, 1 (from GPIO differential)
+                     // Expand/contract symmetrically around center with amplitude scale
+                     const scaled = value * data.scale; // value is already -1 to 1, apply amplitude scaling
+                     const y = height / 2 - (scaled * yScale); // Apply to screen coordinates (inverted Y)
+
+                     if (index === 0) {
+                         pathData = `M ${x} ${y}`;
+                         lastY = y;
+                     } else {
+                         // Create horizontal line at previous level, then vertical transition
+                         pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                         lastY = y;
+                     }
+                 });
+
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', '#3B82F6');
+                path.setAttribute('stroke-width', '3');
+                path.classList.add('animate-pulse');
+                if (data.ch1_data && data.ch1_data.length > 0) {
+                    path.style.animationDelay = '0.5s';
+                }
+                svgElement.appendChild(path);
+            }
+
+            // Update channel labels
+            if (channelLabels) {
+                channelLabels.innerHTML = '';
+
+                if (data.channel_mode === 'both' || data.channel_mode === 'ch1') {
+                    channelLabels.innerHTML += `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                            <span class="text-xs text-green-400">CH1 (Real GPIO pin17-pin18)</span>
+                        </div>
+                    `;
+                }
+
+                if (data.channel_mode === 'both' || data.channel_mode === 'ch2') {
+                    channelLabels.innerHTML += `
+                        <div class="flex items-center space-x-2">
+                            <div class="w-3 h-3 bg-blue-400 rounded-full"></div>
+                            <span class="text-xs text-blue-400">CH2 (Real GPIO pin22-pin23)</span>
+                        </div>
+                    `;
+                }
+            }
+
+            // Update measurements
+            if (measurements) {
+                measurements.innerHTML = `
+                    <div class="text-green-400">Sampling: ${data.sampling_rate}Hz</div>
+                    <div class="text-blue-400">Timebase: ${(data.timebase * 1000).toFixed(1)}ms/div</div>
+                    <div class="text-yellow-400">Scale: ${data.scale.toFixed(1)}x</div>
+                `;
+            }
+        }
+
+        function resetOscilloscopeDisplay() {
+            const svgElement = document.getElementById('waveformSvg');
+            if (svgElement) {
+                svgElement.innerHTML = '';
+            }
+
+            // Reset measurements
+            const measurements = document.querySelector('.absolute.top-2.right-2.text-xs.space-y-1');
+            if (measurements) {
+                measurements.innerHTML = `
+                    <div class="text-gray-400">No data</div>
+                    <div class="text-gray-400">Ready to start</div>
+                    <div class="text-gray-400">--</div>
+                `;
+            }
+        }
+
+        function drawSerialPlot(svgElement, width, height, channelLabels, measurements) {
+            // Use current time as reference for both channels to keep them in sync
+            const currentTime = Date.now();
+            
+            // Draw serial plot for both channels if they have data
+            const drawChannel = (channel, color, yOffset) => {
+                const data = serialPlotData[channel];
+                
+                // Get data from serialValuePatterns if valuePatternName is set
+                let values = data.values;
+                let timestamps = data.timestamps;
+                
+                if (data.valuePatternName && window.serialValuePatterns[data.valuePatternName]) {
+                    values = window.serialValuePatterns[data.valuePatternName].values || [];
+                    timestamps = window.serialValuePatterns[data.valuePatternName].timestamps || [];
+                }
+                
+                // Allow drawing if selectedValue is set OR if using customFormat with data
+                const hasSelection = data.selectedValue || (data.customFormat && values && values.length > 0);
+                if (!hasSelection || !values || values.length === 0) return null;
+
+                // Use fixed timespan for stable x-axis (scrolling window)
+                const timeRange = serialPlotData.plotTimespan;
+                const startTime = currentTime - timeRange;
+
+                // Filter data points within the time window
+                const validPoints = values.map((v, i) => ({
+                    value: v,
+                    timestamp: timestamps[i]
+                })).filter(p => p.timestamp >= startTime);
+
+                if (validPoints.length === 0) return null;
+
+                // Calculate min/max from actual data being displayed
+                const displayedValues = validPoints.map(p => p.value);
+                const currentMinValue = Math.min(...displayedValues);
+                const currentMaxValue = Math.max(...displayedValues);
+                
+                // Update locked axis ranges - only increase, never decrease
+                const range = currentMaxValue - currentMinValue || 1; // Avoid division by zero
+                const padding = Math.max(range * 0.1, 0.1); // At least 0.1 padding
+                const yMin = currentMinValue - padding;
+                const yMax = currentMaxValue + padding;
+
+                // Initialize locked axis ranges if undefined (happens when switching patterns)
+                if (data.lockedMinValue === undefined || data.lockedMinValue === Infinity) {
+                    data.lockedMinValue = yMin;
+                }
+                if (data.lockedMaxValue === undefined || data.lockedMaxValue === -Infinity) {
+                    data.lockedMaxValue = yMax;
+                }
+
+                // Lock axis to highest ranges seen
+                if (yMin < data.lockedMinValue) {
+                    data.lockedMinValue = yMin;
+                }
+                if (yMax > data.lockedMaxValue) {
+                    data.lockedMaxValue = yMax;
+                }
+
+                // Use locked range for stable y-axis
+                const lockedRange = data.lockedMaxValue - data.lockedMinValue;
+                const yScale = (height / 2) / (lockedRange || 1);
+                
+                // Calculate x-scale with fixed timespan
+                const xScale = width / timeRange;
+
+                // Create SVG path
+                let pathData = '';
+                validPoints.forEach((point, i) => {
+                    const x = (point.timestamp - startTime) * xScale;
+                    const y = height / 2 - ((point.value - data.lockedMinValue) * yScale);
+                    pathData += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
+                });
+
+                // Create and append path element
+                const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('fill', 'none');
+                path.setAttribute('stroke', color);
+                path.setAttribute('stroke-width', '2');
+                path.setAttribute('vector-effect', 'non-scaling-stroke');
+                svgElement.appendChild(path);
+
+                // Draw value scale labels on the appropriate side
+                // CH1 (green) on left, CH2 (blue) on right
+                const scaleSteps = 5; // Number of scale divisions
+                const textMargin = 20; // Margin to prevent text clipping
+                const isLeftSide = channel === 'ch1'; // CH1 on left, CH2 on right
+
+                for (let i = 0; i <= scaleSteps; i++) {
+                    const value = data.lockedMinValue + (data.lockedMaxValue - data.lockedMinValue) * (i / scaleSteps);
+                    const y = height / 2 - ((value - data.lockedMinValue) * yScale);
+
+                    // Clamp y position to prevent text from going outside SVG bounds
+                    const clampedY = Math.max(12, Math.min(height - 2, y + 4));
+
+                    const scaleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    scaleText.setAttribute('x', isLeftSide ? textMargin : width - textMargin);
+                    scaleText.setAttribute('y', clampedY);
+                    scaleText.setAttribute('font-size', '11');
+                    scaleText.setAttribute('font-weight', '500');
+                    scaleText.setAttribute('fill', color);
+                    scaleText.setAttribute('opacity', '0.8');
+                    scaleText.setAttribute('text-anchor', isLeftSide ? 'start' : 'end');
+                    scaleText.setAttribute('dominant-baseline', 'middle');
+                    scaleText.textContent = value.toFixed(1);
+                    svgElement.appendChild(scaleText);
+                }
+
+                return {
+                    name: data.selectedValue || (data.customFormat ? `${channel.toUpperCase()}_Custom` : 'Unknown'),
+                    min: currentMinValue.toFixed(2),
+                    max: currentMaxValue.toFixed(2),
+                    current: validPoints[validPoints.length - 1].value.toFixed(2),
+                    yMin: (data.lockedMinValue || yMin).toFixed(2),
+                    yMax: (data.lockedMaxValue || yMax).toFixed(2)
+                };
+            };            // Draw both channels
+            const ch1Info = drawChannel('ch1', '#10B981', 0);
+            const ch2Info = drawChannel('ch2', '#3B82F6', height / 2);
+
+            // Update channel labels
+            if (channelLabels) {
+                channelLabels.innerHTML = '';
+
+                // Always show placeholders for both channels
+                channelLabels.innerHTML = `
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 ${ch1Info ? 'bg-green-400' : 'bg-gray-400'} rounded-full"></div>
+                        <span class="text-xs ${ch1Info ? 'text-green-400' : 'text-gray-400'}">
+                            ${ch1Info ? ch1Info.name + ' (Left CH1)' : 'CH1 (No Data)'}
+                        </span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-3 h-3 ${ch2Info ? 'bg-blue-400' : 'bg-gray-400'} rounded-full"></div>
+                        <span class="text-xs ${ch2Info ? 'text-blue-400' : 'text-gray-400'}">
+                            ${ch2Info ? ch2Info.name + ' (Right CH2)' : 'CH2 (No Data)'}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Update measurements
+            if (measurements) {
+                measurements.innerHTML = '';
+
+                // CH1 Measurements
+                if (ch1Info) {
+                    measurements.innerHTML += `
+                <div class="text-green-400">${ch1Info.name}: ${ch1Info.current}</div>
+                <div class="text-green-300">Range: ${ch1Info.min} - ${ch1Info.max}</div>
+                <div class="text-green-300">Scale: ${ch1Info.yMin} - ${ch1Info.yMax}</div>
+                `;
+                } else if (serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat) {
+                    const label = serialPlotData.ch1.selectedValue || 'CH1_Custom';
+                    measurements.innerHTML += `
+                    <div class="text-gray-400">${label}: No Data</div>
+                    `;
+                }
+
+                // CH2 Measurements
+                if (ch2Info) {
+                    measurements.innerHTML += `
+                <div class="text-blue-400">${ch2Info.name}: ${ch2Info.current}</div>
+                    <div class="text-blue-300">Range: ${ch2Info.min} - ${ch2Info.max}</div>
+                    <div class="text-blue-300">Scale: ${ch2Info.yMin} - ${ch2Info.yMax}</div>
+                    `;
+                } else if (serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat) {
+                    const label = serialPlotData.ch2.selectedValue || 'CH2_Custom';
+                    measurements.innerHTML += `
+                         <div class="text-gray-400">${label}: No Data</div>
+                     `;
+                }
+
+                // Sample rate info
+                const sampleRate = Math.round(1000 / (serialPlotData.plotTimespan / 1000)); // samples per second
+                measurements.innerHTML += `
+                    <div class="text-cyan-400">Sample Rate: ~${sampleRate} Hz</div>
+                `;
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function () {
+            initSocket();
+            setupFlashButton();
+            setupFileUpload();
+            setupSerialControls(); // Initialize serial controls
+            setupStreamingControls(); // Initialize video/audio controls
+            setupOscilloscopeControls(); // Initialize oscilloscope controls
+            setupHubControls(); // Initialize hub controls
+            refreshDevices(); // Load devices on page load
+            updateSlideCarousel(); // Initialize slide carousel
+        });
+    </script>
+</body>
+
+</html>

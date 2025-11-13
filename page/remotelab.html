@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Lab Interface</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .slider::-webkit-slider-thumb {
             appearance: none;
@@ -309,6 +309,12 @@
                     </div>
                 </div>
 
+                <!-- Validation Status -->
+                <div id="validationStatus" class="mb-4 p-3 rounded-lg hidden">
+                    <div id="validationMessage" class="text-sm"></div>
+                    <div id="validationDetails" class="text-xs mt-2 max-h-32 overflow-y-auto"></div>
+                </div>
+
                 <!-- Flash Button & Progress -->
                 <div class="space-y-3">
                     <button
@@ -459,43 +465,97 @@
                             Stop
                         </button>
                         <button id="oscilloscopeClearBtn"
-                            class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
-                            Clear
-                        </button>
+                             class="bg-yellow-500/20 hover:bg-yellow-500/30 border border-red-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200">
+                             Clear
+                         </button>
+                         <div id="triggerButtonContainer">
+                             <button id="triggerToggleBtn"
+                                 class="bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200"
+                                 title="Toggle trigger mode for stable pulse capture">
+                                 Enable Trigger
+                             </button>
+                         </div>
                     </div>
                 </div>
 
                 <!-- Oscilloscope Controls -->
                 <div id="oscilloscopeControls" class="flex gap-4 mb-2">
-                    <!-- Timebase Control -->
-                    <div id="timebaseControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">
-                            Time-base: 10uS/div
-                        </label>
-                        <input type="range" min="0" max="100" value="0"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
-                    </div>
+                     <!-- GPIO Timebase Control -->
+                      <div id="gpioTimebaseControl" class="p-2">
+                          <label class="block text-xs font-medium mb-0.5">
+                              Time-base: 10.00µs/div
+                          </label>
+                          <input type="range" min="0" max="100" value="0"
+                              class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                      </div>
 
-                    <!-- Amplitude Control -->
-                    <div id="amplitudeControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">
-                            Amplude: 2V/div
-                        </label>
-                        <input type="range" min="0" max="100" value="25"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
-                    </div>
+                     <!-- Amplitude Control (GPIO Only) -->
+                       <div id="amplitudeControl" class="p-2">
+                           <label class="block text-xs font-medium mb-0.5">
+                               Amplitude: 1.0x
+                           </label>
+                           <input type="range" min="0" max="100" value="50"
+                               class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                       </div>
 
-                    <!-- GPIO Channel Selection -->
-                    <div id="gpioChannelControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">GPIO Channel</label>
-                        <select
-                            class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-                            <option>Channel 1</option>
-                            <option>Channel 2</option>
-                            <option>Both</option>
-                        </select>
-                    </div>
-                </div>
+                     <!-- GPIO Channel Selection -->
+                     <div id="gpioChannelControl" class="p-2">
+                         <label class="block text-xs font-medium mb-0.5">GPIO Channel</label>
+                         <select
+                             class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                             <option>Channel 1</option>
+                             <option>Channel 2</option>
+                             <option>Both</option>
+                         </select>
+                     </div>
+                 </div>
+
+                <!-- Serial Controls Container (Separate section below GPIO controls) -->
+                <div id="serialControlsContainer" class="flex flex-col gap-4 mb-2" style="display: none;">
+                     
+                     <!-- Serial Channel Selection (Horizontal) -->
+                     <div class="p-2">
+                         <div class="grid grid-cols-2 gap-2">
+                             <div>
+                                 <label class="block text-xs font-medium mb-1">Channel 1</label>
+                                 <select id="serialValueSelectCH1"
+                                     class="w-full bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                     <option value="">Select Value...</option>
+                                 </select>
+                             </div>
+                             <div>
+                                 <label class="block text-xs font-medium mb-1">Channel 2</label>
+                                 <select id="serialValueSelectCH2"
+                                     class="w-full bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
+                                     <option value="">Select Value...</option>
+                                 </select>
+                             </div>
+                         </div>
+                     </div>
+
+                     <!-- Serial Timebase Control -->
+                     <div class="p-2">
+                         <label id="serialTimebaseLabel" class="block text-xs font-medium mb-1">
+                             Time-base: 1000.0ms
+                         </label>
+                         <input type="range" min="0" max="100" value="50"
+                             class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider" />
+                     </div>
+
+                     <!-- Custom Pattern Input (Serial Plot) -->
+                     <div class="p-2 border-t border-white/10">
+                         <label class="block text-xs font-medium mb-2">Add Custom Pattern</label>
+                         <div class="flex gap-1 mb-2">
+                             <input id="patternInput" type="text" placeholder="e.g., temp={value}C"
+                                 class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors" />
+                             <button id="addPatternBtn"
+                                 class="bg-green-500/20 hover:bg-green-500/30 border border-green-500/50 rounded px-2 py-1 text-sm transition-all duration-200">
+                                 Add
+                             </button>
+                         </div>
+                         <div id="patternsContainer" class="text-xs space-x-1 space-y-1 max-h-32 overflow-y-auto flex flex-wrap"></div>
+                     </div>
+                 </div>
 
                 <!-- Slide Carousel -->
                 <div class="flex items-center justify-between mb-3">
@@ -567,8 +627,9 @@
         let currentFirmware = null;
         let currentSlide = 1;
         let totalSlides = 1;
-        let slides = [{ type: 'gpio', name: 'GPIO Logic Analyzer' }];
+        let slides = [{ type: 'gpio', name: 'GPIO Logic Analyzer', active: false }];
         let hubControls = [];
+        let gpioIsRunning = false;  // Track GPIO acquisition state across slides
 
         // Initialize SocketIO connection
         function initSocket() {
@@ -600,9 +661,31 @@
                     updateSerialStatus(data);
                 });
 
+                // Handle serial plot stop (when serial monitor is disconnected)
+                socket.on('stop_serial_plot', function (data) {
+                    // Stop the serial plot if it's running
+                    if (window.serialPlotData && window.serialPlotData.active) {
+                        window.serialPlotData.active = false;
+                        if (window.serialPlotData.animationFrameId) {
+                            cancelAnimationFrame(window.serialPlotData.animationFrameId);
+                            window.serialPlotData.animationFrameId = null;
+                        }
+                        // Update button states
+                        const startBtn = document.getElementById('oscilloscopeStartBtn');
+                        const stopBtn = document.getElementById('oscilloscopeStopBtn');
+                        if (startBtn) startBtn.disabled = false;
+                        if (stopBtn) stopBtn.disabled = true;
+                        console.log('Serial plot stopped due to serial monitor disconnect');
+                    }
+                });
+
                 // Handle logic analyzer data
                 socket.on('logic_analyzer_data', function (data) {
-                    updateOscilloscopeDisplay(data);
+                    // Only update oscilloscope display if current slide is GPIO
+                    const currentSlideData = slides[currentSlide - 1];
+                    if (currentSlideData && currentSlideData.type === 'gpio') {
+                        updateOscilloscopeDisplay(data);
+                    }
                 });
 
 
@@ -785,15 +868,18 @@
                 terminal.appendChild(line);
                 terminal.scrollTop = terminal.scrollHeight;
 
+                // Ensure we're using the current slide's value patterns (critical for multi-slide isolation)
+                getSlideValuePatterns();
+
                 // Process the data for value detection using custom formats first
                 let newValueDetected = false;
                 let customValuesProcessed = false;
 
                 // Check if custom patterns are set and try to parse using them
-                if (window.customPatterns && window.customPatterns.length > 0) {
-                    window.customPatterns.forEach((patternData, idx) => {
-                        if (!patternData.value) return; // Skip empty patterns
-                        const value = parseValueFromFormat(data, patternData.value);
+                if (window.serialPlotData.customPatterns && window.serialPlotData.customPatterns.length > 0) {
+                    window.serialPlotData.customPatterns.forEach((patternValue, idx) => {
+                        if (!patternValue) return; // Skip empty patterns
+                        const value = parseValueFromFormat(data, patternValue);
                         if (value !== null) {
                             const name = `Pattern${idx + 1}`;
                             if (!window.serialValuePatterns[name]) {
@@ -804,7 +890,7 @@
                                     timestamps: [Date.now()],
                                     maxPoints: 1000,
                                     isCustom: true,
-                                    pattern: patternData.value
+                                    pattern: patternValue
                                 };
                                 newValueDetected = true;
                             } else {
@@ -955,21 +1041,22 @@
                     updateSerialValues(true);
 
                     // Auto-create a serial plot slide if this is the first data and no serial slide exists
-                    const hasSerialSlide = slides.some(slide => slide.type === 'serial');
-                    const valueCount = Object.keys(window.serialValuePatterns).length;
-
-                    if (!hasSerialSlide && valueCount >= 1 && totalSlides < 5) {
-                        console.log('[AUTO-CREATE] Creating serial plot slide for detected values');
-                        totalSlides++;
-                        slides.push({
-                            type: 'serial',
-                            name: 'Serial Plot (Auto)'
-                        });
-                        updateSlideCarousel();
-
-                        // Switch to the new serial plot slide
-                        switchToSlide(totalSlides);
-                    }
+                    // DISABLED: Auto-slide creation removed per user request
+                    // const hasSerialSlide = slides.some(slide => slide.type === 'serial');
+                    // const valueCount = Object.keys(window.serialValuePatterns).length;
+                    //
+                    // if (!hasSerialSlide && valueCount >= 1 && totalSlides < 5) {
+                    //     console.log('[AUTO-CREATE] Creating serial plot slide for detected values');
+                    //     totalSlides++;
+                    //     slides.push({
+                    //         type: 'serial',
+                    //         name: 'Serial Plot (Auto)'
+                    //     });
+                    //     updateSlideCarousel();
+                    //
+                    //     // Switch to the new serial plot slide
+                    //     switchToSlide(totalSlides);
+                    // }
                 }
 
                 // Update serial values for plotting when new data arrives
@@ -1067,6 +1154,10 @@
             item.setAttribute('data-device', JSON.stringify(device));
             selectedDevice = device;
             updateFlashButtonState();
+            // Validate firmware if it's already uploaded
+            if (currentFirmware) {
+                validateFirmware();
+            }
         }
 
         function updateFlashButtonState() {
@@ -1074,6 +1165,86 @@
             if (flashButton) {
                 flashButton.disabled = !selectedDevice || !currentFirmware;
             }
+        }
+
+
+
+        // Map device type to chip type
+        function getChipTypeFromDevice(deviceType) {
+            const deviceToChip = {
+                'arduino': 'atmega328p',
+                'atmega2560': 'atmega2560',
+                'esp32': 'esp32',
+                'attiny85': 'attiny85',
+                'stm32': 'stm32',
+                'rp2040': 'rp2040'
+            };
+            return deviceToChip[deviceType] || 'atmega328p';
+        }
+
+        // Validate firmware against selected device's chip
+         function validateFirmware() {
+             const validationStatus = document.getElementById('validationStatus');
+             const validationMessage = document.getElementById('validationMessage');
+             const validationDetails = document.getElementById('validationDetails');
+
+             if (!selectedDevice) {
+                 validationStatus.classList.add('hidden');
+                 return;
+             }
+
+             if (!currentFirmware) {
+                 validationStatus.classList.add('hidden');
+                 return;
+             }
+
+             // Show loading state
+             validationStatus.classList.remove('hidden');
+             validationMessage.innerHTML = '<span class="text-yellow-400">Validating firmware...</span>';
+             validationDetails.innerHTML = '';
+
+             // Get chip type from selected device (selectedDevice[3] is the chip type)
+             const chipType = selectedDevice[3];
+             
+             const formData = new FormData();
+             formData.append('chip_type', chipType);
+
+            fetch('/validate-firmware', {
+                method: 'POST',
+                body: formData
+            })
+                .then(response => response.json())
+                .then(data => {
+                    validationStatus.classList.remove('hidden');
+                    
+                    if (data.passed) {
+                        validationStatus.classList.remove('bg-red-500/20', 'border-red-500/50');
+                        validationStatus.classList.add('bg-green-500/20', 'border-red-500/50', 'border');
+                        validationMessage.innerHTML = '<span class="text-green-400">✓ Validation Passed</span>';
+                        validationDetails.innerHTML = `<div class="text-green-300">${data.message}</div>`;
+                    } else {
+                        validationStatus.classList.remove('bg-green-500/20');
+                        validationStatus.classList.add('bg-red-500/20', 'border', 'border-red-500/50');
+                        validationMessage.innerHTML = '<span class="text-red-400">✗ Validation Failed</span>';
+                        
+                        let details = `<div class="text-red-300">${data.message}</div>`;
+                        if (data.violations && Object.keys(data.violations).length > 0) {
+                            details += '<div class="mt-2 text-red-200"><strong>Violations:</strong><ul class="ml-4">';
+                            Object.entries(data.violations).forEach(([pin, info]) => {
+                                details += `<li>• ${pin}: ${info.violations.join(', ')} not allowed (allowed: ${info.allowed_modes.join(', ')})</li>`;
+                            });
+                            details += '</ul></div>';
+                        }
+                        validationDetails.innerHTML = details;
+                    }
+                })
+                .catch(error => {
+                    console.error('Validation error:', error);
+                    validationStatus.classList.remove('hidden', 'bg-green-500/20');
+                    validationStatus.classList.add('bg-red-500/20', 'border', 'border-red-500/50');
+                    validationMessage.innerHTML = '<span class="text-red-400">✗ Error during validation</span>';
+                    validationDetails.innerHTML = `<div class="text-red-300">${error.message}</div>`;
+                });
         }
 
         // Flash button click handler
@@ -1086,17 +1257,32 @@
                         return;
                     }
 
-                    // Send flash request using selected device data
+                    // Check validation status
+                    const validationStatus = document.getElementById('validationStatus');
+                    const validationMessage = document.getElementById('validationMessage');
+                    
+                    if (!validationStatus.classList.contains('hidden')) {
+                        // Check if validation passed
+                        const isPassed = validationStatus.classList.contains('bg-green-500/20');
+                        if (!isPassed) {
+                            alert('Firmware validation failed. Please fix the issues before flashing.');
+                            return;
+                        }
+                    } else {
+                        alert('Please validate the firmware first');
+                        return;
+                    }
+
+                    // All checks passed - proceed with flashing
                     fetch('/flash', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded',
                         },
                         body: new URLSearchParams({
-                            'device_type': selectedDevice[0],
-                            'port': selectedDevice[1],
-                            'chip_type': selectedDevice[3]
-                        })
+                             'device_type': selectedDevice[0],
+                             'port': selectedDevice[1]
+                         })
                     })
                         .then(response => response.json())
                         .then(data => {
@@ -1132,6 +1318,8 @@
                                 currentFirmware = data.filename;
                                 alert('File uploaded successfully!');
                                 updateFlashButtonState();
+                                // Auto-validate if chip is selected
+                                validateFirmware();
                             }
                         })
                         .catch(error => {
@@ -1140,6 +1328,8 @@
                         });
                 });
             }
+
+
         }
 
         // Serial monitor functions
@@ -1377,34 +1567,118 @@
         }
 
         function switchToSlide(slideNumber) {
-            currentSlide = slideNumber;
-            updateSlideCarousel();
-            updateControlsForSlide();
-        }
+             // Save current slide data
+             if (currentSlide > 0) {
+                 const currentSlideData = slides[currentSlide - 1];
+                 if (currentSlideData && currentSlideData.type === 'gpio') {
+                     // Save GPIO active state
+                     currentSlideData.active = gpioIsRunning;
+                 } else if (currentSlideData && currentSlideData.type === 'serial' && currentSlideData.plotData) {
+                     // Save the global serialPlotData to the current slide's storage
+                     currentSlideData.plotData = JSON.parse(JSON.stringify(window.serialPlotData));
+                     // Also save the current slide's value patterns
+                     currentSlideData.plotData.valuePatterns = window.serialValuePatterns;
+                 }
+             }
 
-        function addSerialPlotSlide() {
-            if (totalSlides >= 5) return;
+             currentSlide = slideNumber;
+             
+             // Load the new slide's data
+             const newSlideData = slides[currentSlide - 1];
+             if (newSlideData && newSlideData.type === 'gpio') {
+                 // Restore GPIO active state
+                 gpioIsRunning = newSlideData.active || false;
+             } else if (newSlideData && newSlideData.type === 'serial') {
+                 // Ensure slide has plotData structure
+                 if (!newSlideData.plotData) {
+                     newSlideData.plotData = createSerialPlotDataStructure();
+                 }
+                 // Restore the serial plot data from slide storage (preserving active state)
+                 window.serialPlotData = newSlideData.plotData;
+                 // Restore the slide-specific value patterns (direct reference, not copy)
+                 window.serialValuePatterns = newSlideData.plotData.valuePatterns || {};
+             }
+             
+             updateSlideCarousel();
+             updateControlsForSlide();
+             // Re-setup oscilloscope controls with fresh event listeners isolated to this slide
+             setupOscilloscopeControls();
+         }
 
-            // Prompt for slide name if adding after first slide
-            let slideName = '';
-            if (totalSlides >= 1) {
-                slideName = prompt('Enter slide name:', `Slide ${totalSlides + 1}`);
-                if (!slideName || slideName.trim() === '') {
-                    return; // Cancel if no name provided
+        // Helper function to ensure serialValuePatterns is in sync with current slide
+        function getSlideValuePatterns() {
+            const currentSlideData = slides[currentSlide - 1];
+            if (currentSlideData && currentSlideData.type === 'serial' && currentSlideData.plotData) {
+                if (!currentSlideData.plotData.valuePatterns) {
+                    currentSlideData.plotData.valuePatterns = {};
                 }
-                slideName = slideName.trim();
-            } else {
-                slideName = 'Serial Plot 1';
+                window.serialValuePatterns = currentSlideData.plotData.valuePatterns;
+                return window.serialValuePatterns;
             }
-
-            totalSlides++;
-            slides.push({
-                type: 'serial',
-                name: slideName
-            });
-
-            switchToSlide(totalSlides);
+            return window.serialValuePatterns;
         }
+
+        function createSerialPlotDataStructure() {
+             return {
+                 ch1: {
+                     values: [],
+                     timestamps: [],
+                     selectedValue: null,
+                     customFormat: null,
+                     maxPoints: 1000,
+                     minValue: Infinity,
+                     maxValue: -Infinity,
+                     scale: 1.0,
+                     lockedMinValue: Infinity,
+                     lockedMaxValue: -Infinity
+                 },
+                 ch2: {
+                     values: [],
+                     timestamps: [],
+                     selectedValue: null,
+                     customFormat: null,
+                     maxPoints: 1000,
+                     minValue: Infinity,
+                     maxValue: -Infinity,
+                     scale: 1.0,
+                     lockedMinValue: Infinity,
+                     lockedMaxValue: -Infinity
+                 },
+                 plotTimespan: 10000,
+                 lastUpdate: 0,
+                 lastDataTime: 0,
+                 active: false,
+                 updateInterval: null,
+                 animationFrameId: null,
+                 customPatterns: [],
+                 valuePatterns: {}  // Per-slide value patterns (not global)
+             };
+         }
+
+         function addSerialPlotSlide() {
+             if (totalSlides >= 5) return;
+
+             // Prompt for slide name if adding after first slide
+             let slideName = '';
+             if (totalSlides >= 1) {
+                 slideName = prompt('Enter slide name:', `Slide ${totalSlides + 1}`);
+                 if (!slideName || slideName.trim() === '') {
+                     return; // Cancel if no name provided
+                 }
+                 slideName = slideName.trim();
+             } else {
+                 slideName = 'Serial Plot 1';
+             }
+
+             totalSlides++;
+             slides.push({
+                 type: 'serial',
+                 name: slideName,
+                 plotData: createSerialPlotDataStructure()
+             });
+
+             switchToSlide(totalSlides);
+         }
 
         function removeSlide(slideNumber) {
             if (slideNumber === 1 || totalSlides <= 1) return; // Cannot remove first slide
@@ -1437,132 +1711,72 @@
         function updateControlsForSlide() {
             const currentSlideData = slides[currentSlide - 1];
             const controlsContainer = document.getElementById('oscilloscopeControls');
+            const startBtn = document.getElementById('oscilloscopeStartBtn');
+            const stopBtn = document.getElementById('oscilloscopeStopBtn');
 
             if (currentSlideData.type === 'gpio') {
-                // GPIO Logic Analyzer controls - Natural flex layout, no wasted space
-                controlsContainer.className = 'flex gap-4 mb-2';
-                controlsContainer.innerHTML = `
-                    <!-- Timebase Control -->
-                    <div id="timebaseControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">
-                            Time-base: 10ms/div
-                        </label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value="50"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                        />
-                    </div>
-
-                    <!-- Amplitude Control -->
-                    <div id="amplitudeControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">
-                            Amplude: 2V/div
-                        </label>
-                        <input
-                            type="range"
-                            min="0"
-                            max="100"
-                            value="25"
-                            class="w-40 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                        />
-                    </div>
-
-                    <!-- GPIO Channel Selection -->
-                    <div id="gpioChannelControl" class="p-2">
-                        <label class="block text-xs font-medium mb-0.5">GPIO Channel</label>
-                        <select class="w-32 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-                            <option>Channel 1</option>
-                            <option>Channel 2</option>
-                            <option>Both</option>
-                        </select>
-                    </div>
-                `;
+                // GPIO Logic Analyzer controls - Show GPIO controls, hide serial
+                document.getElementById('gpioTimebaseControl').style.display = 'block';
+                document.getElementById('serialControlsContainer').style.display = 'none';
+                document.getElementById('gpioChannelControl').style.display = 'block';
+                document.getElementById('amplitudeControl').style.display = 'block';
+                document.getElementById('triggerButtonContainer').style.display = 'block';
+                // Set button states based on GPIO running state
+                if (gpioIsRunning) {
+                    if (startBtn) startBtn.disabled = true;
+                    if (stopBtn) stopBtn.disabled = false;
+                } else {
+                    if (startBtn) startBtn.disabled = false;
+                    if (stopBtn) stopBtn.disabled = true;
+                }
             } else if (currentSlideData.type === 'serial') {
-                // Serial Plot controls - Top row: dropdowns, Bottom row: scales
-                controlsContainer.className = 'space-y-2 mb-2';
-                controlsContainer.innerHTML = `
-            <!-- Top Row - Dropdown Controls -->
-            <div class="flex gap-1">
-            <!-- Baud Rate Control -->
-            <div id="baudRateControl" class="p-0.5">
-            <label class="block text-xs font-medium mb-0.5">Baud-rate</label>
-            <select class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-            <option>9600</option>
-            <option>19200</option>
-            <option>38400</option>
-            <option>57600</option>
-            <option>115200</option>
-            </select>
-            </div>
+               // Serial Plot controls - Show serial controls, hide GPIO
+               document.getElementById('gpioTimebaseControl').style.display = 'none';
+               document.getElementById('serialControlsContainer').style.display = 'block';
+               document.getElementById('gpioChannelControl').style.display = 'none';
+               document.getElementById('amplitudeControl').style.display = 'none';
+               document.getElementById('triggerButtonContainer').style.display = 'none';
 
-            <!-- CH1 Value Control -->
-            <div id="ch1ValueControl" class="p-0.5">
-            <label class="block text-xs font-medium mb-0.5">CH1-Value</label>
-            <select id="serialValueSelectCH1" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-            <option>Loading...</option>
-            </select>
-            </div>
+               // Set button states based on current slide's active state
+               if (serialPlotData.active) {
+                   if (startBtn) startBtn.disabled = true;
+                   if (stopBtn) stopBtn.disabled = false;
+               } else {
+                   if (startBtn) startBtn.disabled = false;
+                   if (stopBtn) stopBtn.disabled = true;
+               }
 
-            <!-- CH2 Value Control -->
-            <div id="ch2ValueControl" class="p-0.5">
-            <label class="block text-xs font-medium mb-0.5">CH2-value</label>
-            <select id="serialValueSelectCH2" class="w-24 bg-black/30 border border-white/20 rounded px-2 py-0.5 text-sm focus:border-blue-400 focus:outline-none transition-colors">
-            <option>Loading...</option>
-            </select>
-            </div>
-            </div>
+                // Clear and restore patterns container for this slide only
+                const patternsContainer = document.getElementById('patternsContainer');
+                if (patternsContainer) {
+                    patternsContainer.innerHTML = '';
+                    // Restore custom patterns for this specific slide
+                    if (window.serialPlotData.customPatterns && window.serialPlotData.customPatterns.length > 0) {
+                        window.serialPlotData.customPatterns.forEach(pattern => {
+                            const btn = document.createElement('button');
+                            btn.className = 'bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 text-xs hover:bg-blue-500/40 transition-colors';
+                            btn.innerHTML = `${pattern} <span class="ml-1 cursor-pointer">×</span>`;
+                            btn.onclick = function (e) {
+                                if (e.target.textContent === '×') {
+                                    window.serialPlotData.customPatterns = window.serialPlotData.customPatterns.filter(p => p !== pattern);
+                                    btn.remove();
+                                }
+                            };
+                            patternsContainer.appendChild(btn);
+                        });
+                    }
+                }
 
-            <!-- Custom Format Row - For manual pattern entry -->
-            <div id="customFormatSection" class="border-t border-white/10 pt-2">
-            <div class="flex justify-between items-center mb-2">
-                <label class="text-xs font-medium text-gray-400">
-                    Add Custom Pattern
-                </label>
-            </div>
-            
-            <!-- Pattern Input -->
-            <div class="flex gap-1">
-            <input
-            type="text"
-            id="patternInput"
-            placeholder="e.g., {value}RPM or temp: {value}°C"
-            class="flex-1 bg-black/30 border border-white/20 rounded px-2 py-1 text-xs focus:border-blue-400 focus:outline-none transition-colors"
-            />
-            <button id="addPatternBtn" class="text-xs bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded px-2 py-1 transition-all duration-200">
-            <span>+</span>
-            </button>
-            </div>
-            <div class="text-xs text-gray-500 mt-0.5">Patterns appear in Value dropdowns below</div>
-            
-             <!-- Custom Patterns List - For removing patterns -->
-             <div id="customPatternsList" class="mt-2 pt-2 border-t border-white/10">
-                 <div class="text-xs font-medium text-gray-400 mb-1">Saved Patterns:</div>
-                 <div id="patternsContainer" class="flex flex-wrap gap-2">
-                     <div class="text-xs text-gray-500 italic">No custom patterns yet</div>
-                 </div>
-             </div>
-             </div>
-
-            <!-- Bottom Row - Scale Controls -->
-                 <div class="grid grid-cols-1 gap-2">
-                         <!-- Timebase Control -->
-                         <div id="timebaseControl" class="p-0">
-                             <label class="block text-xs font-medium mb-0">
-                                 Timebase: 100ms/div
-                             </label>
-                             <input
-                                 type="range"
-                                 min="0"
-                                 max="100"
-                                 value="50"
-                                 class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
-                             />
-                         </div>
-                     </div>
-                `;
+                // Restore channel selections from slide-specific data
+                const selectElementCH1 = document.getElementById('serialValueSelectCH1');
+                const selectElementCH2 = document.getElementById('serialValueSelectCH2');
+                
+                if (selectElementCH1 && window.serialPlotData.ch1.selectedValue) {
+                    selectElementCH1.value = window.serialPlotData.ch1.selectedValue;
+                }
+                if (selectElementCH2 && window.serialPlotData.ch2.selectedValue) {
+                    selectElementCH2.value = window.serialPlotData.ch2.selectedValue;
+                }
 
                 // Initialize serial value detection
                 updateSerialValues();
@@ -1570,17 +1784,56 @@
                 // Setup custom format handlers
                 setupCustomFormatHandlers();
 
+                // Restore channel selections again after updateSerialValues (which rebuilds dropdowns)
+                setTimeout(() => {
+                    const selectElementCH1 = document.getElementById('serialValueSelectCH1');
+                    const selectElementCH2 = document.getElementById('serialValueSelectCH2');
+                    
+                    if (selectElementCH1 && window.serialPlotData.ch1.selectedValue) {
+                        selectElementCH1.value = window.serialPlotData.ch1.selectedValue;
+                        if (selectElementCH1.value && window.serialValuePatterns[selectElementCH1.value]) {
+                            window.serialPlotData.ch1.values = window.serialValuePatterns[selectElementCH1.value].values;
+                            window.serialPlotData.ch1.timestamps = window.serialValuePatterns[selectElementCH1.value].timestamps;
+                        }
+                    }
+                    if (selectElementCH2 && window.serialPlotData.ch2.selectedValue) {
+                        selectElementCH2.value = window.serialPlotData.ch2.selectedValue;
+                        if (selectElementCH2.value && window.serialValuePatterns[selectElementCH2.value]) {
+                            window.serialPlotData.ch2.values = window.serialValuePatterns[selectElementCH2.value].values;
+                            window.serialPlotData.ch2.timestamps = window.serialValuePatterns[selectElementCH2.value].timestamps;
+                        }
+                    }
+                }, 0);
+
                 // Setup timebase slider for serial plots
-                const serialTimebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
-                if (serialTimebaseSlider) {
-                    serialTimebaseSlider.addEventListener('input', function () {
-                        const timebaseValue = this.value;
-                        // Convert slider value to plot timespan (100ms to 60s)
-                        const timespan = Math.pow(10, (timebaseValue - 50) / 25) * 1000; // Convert to ms
-                        serialPlotData.plotTimespan = Math.max(100, Math.min(60000, timespan)); // Clamp 100ms-60s
-                        updateSerialTimebaseLabel(serialPlotData.plotTimespan);
-                        updateWaveformDisplay();
-                    });
+                const serialControlsContainer = document.getElementById('serialControlsContainer');
+                if (serialControlsContainer) {
+                    const serialTimebaseSlider = serialControlsContainer.querySelector('input[type="range"]');
+                    if (serialTimebaseSlider) {
+                        // Restore timebase slider position
+                        const currentTimespan = window.serialPlotData.plotTimespan;
+                        const sliderValue = Math.log10(currentTimespan / 1000) * 50 + 50;
+                        serialTimebaseSlider.value = Math.max(0, Math.min(100, sliderValue));
+                        updateSerialTimebaseLabel(currentTimespan);
+
+                        serialTimebaseSlider.addEventListener('input', function () {
+                            const timebaseValue = parseInt(this.value);
+                            // Slider range 0-100 maps to timespan 100ms-10s logarithmically
+                            // At 0: 100ms, at 50: 1000ms (1s), at 100: 10000ms (10s)
+                            const timespan = Math.pow(10, (timebaseValue / 50) - 1) * 1000; // Convert to ms
+                            serialPlotData.plotTimespan = timespan;
+                            updateSerialTimebaseLabel(serialPlotData.plotTimespan);
+                            updateWaveformDisplay();
+                        });
+                    }
+                }
+
+                // Restart animation if plot was active
+                if (window.serialPlotData.active) {
+                    if (window.serialPlotData.animationFrameId) {
+                        cancelAnimationFrame(window.serialPlotData.animationFrameId);
+                    }
+                    animateSerialPlot();
                 }
             }
 
@@ -1712,15 +1965,14 @@
             const container = document.getElementById('patternsContainer');
             if (!container) return;
 
-            if (!window.customPatterns || window.customPatterns.length === 0) {
+            if (!window.serialPlotData.customPatterns || window.serialPlotData.customPatterns.length === 0) {
                 container.innerHTML = '<div class="text-xs text-gray-500 italic">No custom patterns yet</div>';
                 return;
             }
 
             container.innerHTML = '';
-            window.customPatterns.forEach((patternData, idx) => {
+            window.serialPlotData.customPatterns.forEach((patternValue, idx) => {
                 const patternName = `Pattern${idx + 1}`;
-                const patternValue = patternData.value;
                 
                 const patternItem = document.createElement('div');
                 patternItem.className = 'flex items-center gap-1 bg-white/5 rounded px-2 py-1 border border-white/10 whitespace-nowrap';
@@ -1743,7 +1995,7 @@
                     const patternName = `Pattern${idx + 1}`;
                     const confirmed = confirm(`Remove pattern "${patternName}"?`);
                     if (confirmed) {
-                        window.customPatterns.splice(idx, 1);
+                        window.serialPlotData.customPatterns.splice(idx, 1);
                         delete window.serialValuePatterns[patternName];
                         console.log('[PATTERN REMOVED]:', patternName);
                         updateCustomPatternsList();
@@ -1755,44 +2007,56 @@
 
         // Setup custom format handlers with unified pattern support
         function setupCustomFormatHandlers() {
-            // Initialize global patterns array if not exists
-            if (!window.customPatterns) {
-                window.customPatterns = [];
-            }
-
             // Setup add pattern button and input
             const addPatternBtn = document.getElementById('addPatternBtn');
             const patternInput = document.getElementById('patternInput');
 
             if (addPatternBtn && patternInput) {
+                // Clear pattern input field when switching slides
+                patternInput.value = '';
+
+                // Clone and replace to remove all old event listeners
+                const newAddPatternBtn = addPatternBtn.cloneNode(true);
+                addPatternBtn.parentNode.replaceChild(newAddPatternBtn, addPatternBtn);
+                
+                const newPatternInput = patternInput.cloneNode(true);
+                patternInput.parentNode.replaceChild(newPatternInput, patternInput);
+
                 const addPattern = function () {
-                    const pattern = patternInput.value.trim();
+                    const inputElement = document.getElementById('patternInput');
+                    const pattern = inputElement.value.trim();
                     if (!pattern) {
                         alert('Please enter a pattern');
                         return;
                     }
 
-                    // Check for duplicates
-                    if (window.customPatterns.some(p => p.value === pattern)) {
+                    // Check for duplicates in slide-specific patterns
+                    if (window.serialPlotData.customPatterns.some(p => p === pattern)) {
                         alert('This pattern already exists');
                         return;
                     }
 
-                    // Add new pattern
-                    const patternId = `pattern_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    window.customPatterns.push({ id: patternId, value: pattern });
+                    // Add new pattern to slide-specific storage
+                    window.serialPlotData.customPatterns.push(pattern);
 
                     console.log('[CUSTOM PATTERN] Added:', pattern);
-                    patternInput.value = ''; // Clear input
-                    patternInput.focus();
+                    inputElement.value = ''; // Clear input
+                    inputElement.focus();
 
                     // Update dropdowns and patterns list
                     updateCustomPatternsList();
                     updateSerialValues(true);
+                    
+                    // Trigger waveform update to display the new pattern
+                    updateWaveformDisplay();
                 };
 
-                addPatternBtn.addEventListener('click', addPattern);
-                patternInput.addEventListener('keypress', function (e) {
+                // Get fresh references after cloning
+                const freshBtn = document.getElementById('addPatternBtn');
+                const freshInput = document.getElementById('patternInput');
+
+                freshBtn.addEventListener('click', addPattern);
+                freshInput.addEventListener('keypress', function (e) {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         addPattern();
@@ -1827,6 +2091,9 @@
 
         // Serial value detection for plotting
         function updateSerialValues(forceUpdate = false) {
+            // Ensure we're using the current slide's value patterns
+            getSlideValuePatterns();
+            
             const selectElementCH1 = document.getElementById('serialValueSelectCH1');
             const selectElementCH2 = document.getElementById('serialValueSelectCH2');
 
@@ -1888,16 +2155,10 @@
                     if (patternName && patternName.startsWith('Pattern')) {
                         const confirmed = confirm(`Remove pattern "${patternName}"?`);
                         if (confirmed) {
-                            // Find and remove from customPatterns array
-                            window.customPatterns = window.customPatterns.filter(p => {
-                                const idx = Object.keys(window.serialValuePatterns).findIndex(key => key === patternName);
-                                return idx === -1 || p.id !== (window.serialValuePatterns[patternName]?.id || '');
-                            });
-
-                            // Find pattern by name and remove
-                            for (let i = 0; i < window.customPatterns.length; i++) {
+                            // Find pattern by name and remove from slide-specific storage
+                            for (let i = 0; i < window.serialPlotData.customPatterns.length; i++) {
                                 if (`Pattern${i + 1}` === patternName) {
-                                    window.customPatterns.splice(i, 1);
+                                    window.serialPlotData.customPatterns.splice(i, 1);
                                     break;
                                 }
                             }
@@ -1924,16 +2185,18 @@
             selectElementCH1.onchange = function () {
                 serialPlotData.ch1.selectedValue = this.value;
                 if (this.value && window.serialValuePatterns[this.value]) {
-                    serialPlotData.ch1.values = window.serialValuePatterns[this.value].values;
-                    serialPlotData.ch1.timestamps = window.serialValuePatterns[this.value].timestamps;
+                    // Use direct reference to array - the animation loop will handle rendering
+                    // This prevents race conditions from array copying
+                    serialPlotData.ch1.valuePatternName = this.value;
                 }
             };
 
             selectElementCH2.onchange = function () {
                 serialPlotData.ch2.selectedValue = this.value;
                 if (this.value && window.serialValuePatterns[this.value]) {
-                    serialPlotData.ch2.values = window.serialValuePatterns[this.value].values;
-                    serialPlotData.ch2.timestamps = window.serialValuePatterns[this.value].timestamps;
+                    // Use direct reference to array - the animation loop will handle rendering
+                    // This prevents race conditions from array copying
+                    serialPlotData.ch2.valuePatternName = this.value;
                 }
             };
 
@@ -2795,9 +3058,21 @@
 
         // Oscilloscope control functions
         function setupOscilloscopeControls() {
-            const startBtn = document.getElementById('oscilloscopeStartBtn');
-            const stopBtn = document.getElementById('oscilloscopeStopBtn');
+            let startBtn = document.getElementById('oscilloscopeStartBtn');
+            let stopBtn = document.getElementById('oscilloscopeStopBtn');
             const clearBtn = document.getElementById('oscilloscopeClearBtn');
+
+            // Remove existing event listeners to prevent multiple listeners on same button
+            if (startBtn) {
+                const newStartBtn = startBtn.cloneNode(true);
+                startBtn.parentNode.replaceChild(newStartBtn, startBtn);
+                startBtn = document.getElementById('oscilloscopeStartBtn');
+            }
+            if (stopBtn) {
+                const newStopBtn = stopBtn.cloneNode(true);
+                stopBtn.parentNode.replaceChild(newStopBtn, stopBtn);
+                stopBtn = document.getElementById('oscilloscopeStopBtn');
+            }
 
             // Start button
             if (startBtn) {
@@ -2816,6 +3091,8 @@
                             .then(response => response.json())
                             .then(data => {
                                 if (data.status === 'started') {
+                                    gpioIsRunning = true;
+                                    currentSlideData.active = true;
                                     startBtn.disabled = true;
                                     stopBtn.disabled = false;
                                 } else {
@@ -2827,7 +3104,8 @@
                                 alert('Failed to start logic analyzer');
                             });
                     } else if (currentSlideData.type === 'serial') {
-                        // Start Serial Plot
+                        // Start Serial Plot - use the current slide's plotData
+                        const slideData = currentSlideData.plotData || window.serialPlotData;
                         const hasCH1 = serialPlotData.ch1.selectedValue || serialPlotData.ch1.customFormat;
                         const hasCH2 = serialPlotData.ch2.selectedValue || serialPlotData.ch2.customFormat;
 
@@ -2852,7 +3130,7 @@
                             };
                         });
 
-                        // Enable automatic plotting updates
+                        // Enable automatic plotting updates for this slide only
                         serialPlotData.active = true;
                         startBtn.disabled = true;
                         stopBtn.disabled = false;
@@ -2882,6 +3160,8 @@
                             .then(response => response.json())
                             .then(data => {
                                 if (data.status === 'stopped') {
+                                    gpioIsRunning = false;
+                                    currentSlideData.active = false;
                                     startBtn.disabled = false;
                                     stopBtn.disabled = true;
                                 } else {
@@ -2893,7 +3173,7 @@
                                 alert('Failed to stop logic analyzer');
                             });
                     } else if (currentSlideData.type === 'serial') {
-                        // Stop Serial Plot
+                        // Stop Serial Plot - only affects current slide
                         serialPlotData.active = false;
                         if (serialPlotData.animationFrameId) {
                             cancelAnimationFrame(serialPlotData.animationFrameId);
@@ -2929,31 +3209,121 @@
                 });
             }
 
-            // Timebase control for GPIO plots
-            const timebaseSlider = document.querySelector('#timebaseControl input[type="range"]');
-            if (timebaseSlider) {
-                timebaseSlider.addEventListener('input', function () {
-                    const timebaseValue = this.value;
-                    const currentSlideData = slides[currentSlide - 1];
+            // Trigger Toggle button
+            const triggerToggleBtn = document.getElementById('triggerToggleBtn');
+            let triggerEnabled = false;
 
-                    // Only handle GPIO in setupOscilloscopeControls (serial is handled in updateControlsForSlide)
-                    if (currentSlideData && currentSlideData.type === 'gpio') {
-                        // GPIO: Convert slider value to timebase (0.001 to 10 seconds)
-                        const timebase = Math.pow(10, (timebaseValue - 50) / 25); // Exponential scale
-                        updateTimebaseLabel(timebase);
-
-                        if (socket && socket.connected) {
-                            fetch('/logic/config', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ timebase: timebase })
-                            }).catch(error => console.error('Error updating timebase:', error));
-                        }
+            if (triggerToggleBtn) {
+                triggerToggleBtn.addEventListener('click', function () {
+                    if (!socket || !socket.connected) {
+                        alert('Not connected to server');
+                        return;
                     }
+
+                    if (triggerEnabled) {
+                         // Disable trigger
+                         fetch('/logic/trigger/disable', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' }
+                         })
+                             .then(response => response.json())
+                             .then(data => {
+                                 if (data.status === 'trigger_disabled') {
+                                     triggerEnabled = false;
+                                     triggerToggleBtn.textContent = 'Enable Trigger';
+                                     triggerToggleBtn.style.opacity = '1';
+                                     console.log('Trigger disabled:', data.message);
+                                 } else {
+                                     alert('Failed to disable trigger: ' + (data.message || 'Unknown error'));
+                                 }
+                             })
+                             .catch(error => {
+                                 console.error('Error disabling trigger:', error);
+                                 alert('Failed to disable trigger');
+                             });
+                     } else {
+                         // Enable trigger
+                         const channel = 'ch1'; // Default to CH1
+                         const edge = 'rising'; // Default to rising edge
+
+                         fetch('/logic/trigger/enable', {
+                             method: 'POST',
+                             headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({ channel: channel, edge: edge })
+                         })
+                             .then(response => response.json())
+                             .then(data => {
+                                 if (data.status === 'trigger_enabled') {
+                                     triggerEnabled = true;
+                                     triggerToggleBtn.textContent = 'Disable Trigger';
+                                     triggerToggleBtn.style.opacity = '0.8';
+                                     console.log('Trigger enabled:', data.message);
+                                 } else {
+                                     alert('Failed to enable trigger: ' + (data.message || 'Unknown error'));
+                                 }
+                             })
+                             .catch(error => {
+                                 console.error('Error enabling trigger:', error);
+                                 alert('Failed to enable trigger');
+                             });
+                     }
                 });
             }
 
-            // Channel selection
+
+
+            // Timebase control for GPIO plots
+             const gpioTimebaseSlider = document.querySelector('#gpioTimebaseControl input[type="range"]');
+             if (gpioTimebaseSlider) {
+                 gpioTimebaseSlider.addEventListener('input', function () {
+                     const timebaseValue = this.value;
+                     const currentSlideData = slides[currentSlide - 1];
+
+                     // Only handle GPIO (serial is handled separately in updateControlsForSlide)
+                     if (currentSlideData && currentSlideData.type === 'gpio') {
+                         // GPIO: Convert slider value to timebase using logarithmic scale
+                         // Range: 0.00001 (10µs) to 1 (1s)
+                         // Slider: 0-100
+                         const timebase = Math.pow(10, (timebaseValue / 100) * 5 - 5); // 10^(-5 to 0)
+                         updateGpioTimebaseLabel(timebase);
+
+                         if (socket && socket.connected) {
+                             fetch('/logic/config', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ timebase: timebase })
+                             }).catch(error => console.error('Error updating timebase:', error));
+                         }
+                     }
+                 });
+             }
+
+             // Amplitude control for GPIO plots
+             const amplitudeSlider = document.querySelector('#amplitudeControl input[type="range"]');
+             if (amplitudeSlider) {
+                 amplitudeSlider.addEventListener('input', function () {
+                     const amplitudeValue = parseInt(this.value);
+                     const currentSlideData = slides[currentSlide - 1];
+
+                     // Only handle GPIO in setupOscilloscopeControls
+                     if (currentSlideData && currentSlideData.type === 'gpio') {
+                         // Convert slider value (0-100) to amplitude scale (0.1 to 10.0)
+                         // Logarithmic scale: 0 -> 0.1, 50 -> 1.0, 100 -> 10.0
+                         const amplitudeScale = Math.pow(10, (amplitudeValue / 50) - 1); // 10^(-1 to 1)
+                         updateAmplitudeLabel(amplitudeScale);
+
+                         if (socket && socket.connected) {
+                             fetch('/logic/config', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ amplitude_scale: amplitudeScale })
+                             }).catch(error => console.error('Error updating amplitude scale:', error));
+                         }
+                     }
+                 });
+             }
+
+             // Channel selection
             const channelSelect = document.querySelector('#gpioChannelControl select');
             if (channelSelect) {
                 channelSelect.addEventListener('change', function () {
@@ -3003,34 +3373,48 @@
             setupSerialValueSelect(2);
         }
 
-        function updateTimebaseLabel(timebase) {
-            const label = document.querySelector('#timebaseControl label');
-            if (label) {
-                let unit = 's/div';
-                let value = timebase;
-                if (timebase < 0.001) {
-                    value = timebase * 1000;
-                    unit = 'ms/div';
-                } else if (timebase < 1) {
-                    value = timebase * 1000;
-                    unit = 'ms/div';
-                }
-                label.textContent = `Time-base: ${value.toFixed(1)}${unit}`;
-            }
-        }
+        function updateGpioTimebaseLabel(timebase) {
+             const label = document.querySelector('#gpioTimebaseControl label');
+             if (label) {
+                 let unit = 's/div';
+                 let value = timebase;
+                 if (timebase < 0.00001) {
+                     value = timebase * 1000000;
+                     unit = 'µs/div';
+                 } else if (timebase < 0.001) {
+                     value = timebase * 1000000;
+                     unit = 'µs/div';
+                 } else if (timebase < 1) {
+                     value = timebase * 1000;
+                     unit = 'ms/div';
+                 }
+                 label.textContent = `Time-base: ${value.toFixed(2)}${unit}`;
+             }
+         }
+
+         function updateAmplitudeLabel(scale) {
+             const label = document.querySelector('#amplitudeControl label');
+             if (label) {
+                 label.textContent = `Amplitude: ${scale.toFixed(1)}x`;
+             }
+         }
 
         function updateSerialTimebaseLabel(timespan) {
-            const label = document.querySelector('#timebaseControl label');
-            if (label) {
-                let unit = 'ms';
-                let value = timespan;
-                if (timespan >= 1000) {
-                    value = timespan / 1000;
-                    unit = 's';
-                }
-                label.textContent = `Timebase: ${value.toFixed(1)}${unit}`;
-            }
-        }
+             const label = document.getElementById('serialTimebaseLabel');
+             if (label) {
+                 let unit = 'ms';
+                 let value = timespan;
+                 if (timespan >= 1000) {
+                     value = timespan / 1000;
+                     unit = 's';
+                 } else if (timespan >= 100) {
+                     value = Math.round(timespan);
+                     unit = 'ms';
+                 }
+                 const decimals = unit === 's' ? 2 : 0;
+                 label.textContent = `Time-base: ${value.toFixed(decimals)}${unit}`;
+             }
+         }
 
         function updateOscilloscopeDisplay(data) {
             const svgElement = document.getElementById('waveformSvg');
@@ -3045,13 +3429,26 @@
             paths.forEach(path => path.remove());
 
             // Get actual display dimensions from the SVG element
-            const rect = svgElement.getBoundingClientRect();
-            const width = rect.width;
-            const height = rect.height;
+             const rect = svgElement.getBoundingClientRect();
+             const width = rect.width;
+             const height = rect.height;
 
-            // Scale factors - adjust for digital signals (+1/-1 range)
-            const xScale = (width - 20) / Math.max(data.ch1_data.length, data.ch2_data.length, 1); // Leave 10px margin on each side to prevent clipping
-            const yScale = height / 8; // Scale for +/- 1V digital signals - eighth height for optimal visibility
+             // Scale factors - adjust for digital signals (+1/-1 range)
+             // xScale: Each sample should span pixels proportional to its time duration
+             // timebase tells us seconds per division (e.g., 10µs/div, 1ms/div, 1s/div)
+             // 10 divisions fit on screen
+             // So total time window = timebase * 10
+             // pixels per division = (width - 20) / 10
+             // This is independent of sample count
+             const pixelsPerDivision = (width - 20) / 10;
+             const secondsPerDivision = data.timebase;
+             const pixelsPerSecond = pixelsPerDivision / secondsPerDivision;
+             
+             // Each sample spans 1/sampling_rate seconds
+             const secondsPerSample = 1 / data.sampling_rate;
+             const xScale = pixelsPerSecond * secondsPerSample;
+             
+             const yScale = height / 8; // Scale for +/- 1V digital signals - eighth height for optimal visibility
 
             // Create path for CH1
             if (data.ch1_data && data.ch1_data.length > 0 && (data.channel_mode === 'both' || data.channel_mode === 'ch1')) {
@@ -3059,18 +3456,21 @@
                 let lastY = null;
 
                 data.ch1_data.forEach((value, index) => {
-                    const x = index * xScale;
-                    const y = height / 2 - ((value - 0.5) * yScale * data.scale); // Center at middle, apply amplitude scaling
+                     const x = index * xScale;
+                     // Digital signal values are -1, 0, 1 (from GPIO differential)
+                     // Expand/contract symmetrically around center with amplitude scale
+                     const scaled = value * data.scale; // value is already -1 to 1, apply amplitude scaling
+                     const y = height / 2 - (scaled * yScale); // Apply to screen coordinates (inverted Y)
 
-                    if (index === 0) {
-                        pathData = `M ${x} ${y}`;
-                        lastY = y;
-                    } else {
-                        // Create horizontal line at previous level, then vertical transition
-                        pathData += ` L ${x} ${lastY} L ${x} ${y}`;
-                        lastY = y;
-                    }
-                });
+                     if (index === 0) {
+                         pathData = `M ${x} ${y}`;
+                         lastY = y;
+                     } else {
+                         // Create horizontal line at previous level, then vertical transition
+                         pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                         lastY = y;
+                     }
+                 });
 
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('d', pathData);
@@ -3087,18 +3487,21 @@
                 let lastY = null;
 
                 data.ch2_data.forEach((value, index) => {
-                    const x = index * xScale;
-                    const y = height / 2 - ((value - 0.5) * yScale * data.scale); // Center at middle, apply amplitude scaling
+                     const x = index * xScale;
+                     // Digital signal values are -1, 0, 1 (from GPIO differential)
+                     // Expand/contract symmetrically around center with amplitude scale
+                     const scaled = value * data.scale; // value is already -1 to 1, apply amplitude scaling
+                     const y = height / 2 - (scaled * yScale); // Apply to screen coordinates (inverted Y)
 
-                    if (index === 0) {
-                        pathData = `M ${x} ${y}`;
-                        lastY = y;
-                    } else {
-                        // Create horizontal line at previous level, then vertical transition
-                        pathData += ` L ${x} ${lastY} L ${x} ${y}`;
-                        lastY = y;
-                    }
-                });
+                     if (index === 0) {
+                         pathData = `M ${x} ${y}`;
+                         lastY = y;
+                     } else {
+                         // Create horizontal line at previous level, then vertical transition
+                         pathData += ` L ${x} ${lastY} L ${x} ${y}`;
+                         lastY = y;
+                     }
+                 });
 
                 const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                 path.setAttribute('d', pathData);
@@ -3169,27 +3572,50 @@
             // Draw serial plot for both channels if they have data
             const drawChannel = (channel, color, yOffset) => {
                 const data = serialPlotData[channel];
+                
+                // Get data from serialValuePatterns if valuePatternName is set
+                let values = data.values;
+                let timestamps = data.timestamps;
+                
+                if (data.valuePatternName && window.serialValuePatterns[data.valuePatternName]) {
+                    values = window.serialValuePatterns[data.valuePatternName].values || [];
+                    timestamps = window.serialValuePatterns[data.valuePatternName].timestamps || [];
+                }
+                
                 // Allow drawing if selectedValue is set OR if using customFormat with data
-                const hasSelection = data.selectedValue || (data.customFormat && data.values && data.values.length > 0);
-                if (!hasSelection || !data.values || data.values.length === 0) return null;
+                const hasSelection = data.selectedValue || (data.customFormat && values && values.length > 0);
+                if (!hasSelection || !values || values.length === 0) return null;
 
                 // Use fixed timespan for stable x-axis (scrolling window)
                 const timeRange = serialPlotData.plotTimespan;
                 const startTime = currentTime - timeRange;
 
                 // Filter data points within the time window
-                const validPoints = data.values.map((v, i) => ({
+                const validPoints = values.map((v, i) => ({
                     value: v,
-                    timestamp: data.timestamps[i]
+                    timestamp: timestamps[i]
                 })).filter(p => p.timestamp >= startTime);
 
                 if (validPoints.length === 0) return null;
 
+                // Calculate min/max from actual data being displayed
+                const displayedValues = validPoints.map(p => p.value);
+                const currentMinValue = Math.min(...displayedValues);
+                const currentMaxValue = Math.max(...displayedValues);
+                
                 // Update locked axis ranges - only increase, never decrease
-                const range = data.maxValue - data.minValue || 1; // Avoid division by zero
+                const range = currentMaxValue - currentMinValue || 1; // Avoid division by zero
                 const padding = Math.max(range * 0.1, 0.1); // At least 0.1 padding
-                const yMin = data.minValue - padding;
-                const yMax = data.maxValue + padding;
+                const yMin = currentMinValue - padding;
+                const yMax = currentMaxValue + padding;
+
+                // Initialize locked axis ranges if undefined (happens when switching patterns)
+                if (data.lockedMinValue === undefined || data.lockedMinValue === Infinity) {
+                    data.lockedMinValue = yMin;
+                }
+                if (data.lockedMaxValue === undefined || data.lockedMaxValue === -Infinity) {
+                    data.lockedMaxValue = yMax;
+                }
 
                 // Lock axis to highest ranges seen
                 if (yMin < data.lockedMinValue) {
@@ -3251,11 +3677,11 @@
 
                 return {
                     name: data.selectedValue || (data.customFormat ? `${channel.toUpperCase()}_Custom` : 'Unknown'),
-                    min: data.minValue.toFixed(2),
-                    max: data.maxValue.toFixed(2),
+                    min: currentMinValue.toFixed(2),
+                    max: currentMaxValue.toFixed(2),
                     current: validPoints[validPoints.length - 1].value.toFixed(2),
-                    yMin: data.lockedMinValue.toFixed(2),
-                    yMax: data.lockedMaxValue.toFixed(2)
+                    yMin: (data.lockedMinValue || yMin).toFixed(2),
+                    yMax: (data.lockedMaxValue || yMax).toFixed(2)
                 };
             };            // Draw both channels
             const ch1Info = drawChannel('ch1', '#10B981', 0);

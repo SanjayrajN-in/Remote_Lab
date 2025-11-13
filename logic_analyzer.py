@@ -42,7 +42,7 @@ class LogicAnalyzerManager:
 
         # Simple acquisition parameters
         self.sampling_rate = 10000  # 10 kHz sampling (safer default)
-        self.buffer_size = 20000     # Buffer for 0.2 seconds of data (increased for longer waveforms)
+        self.buffer_size = 100000     # Buffer for 10 seconds at 10kHz (supports wide timebases)
         self.stream_interval = 0.05  # Send data every 50ms
 
 
@@ -56,7 +56,23 @@ class LogicAnalyzerManager:
         self.timebase = 0.00001    # 10uS/div default (minimum)
         self.amplitude_scale = 1.0
 
-        # No trigger functionality - continuous capture only
+        # Trigger functionality
+        self.trigger_enabled = False
+        self.trigger_channel = 'ch1'  # 'ch1' or 'ch2'
+        self.trigger_edge = 'rising'  # 'rising' or 'falling'
+        self.trigger_level = 0  # -1, 0, or 1 (differential value)
+        self.trigger_armed = False
+        self.trigger_captured = False
+        self.trigger_displayed = False  # Flag to prevent re-streaming after capture
+        self.pre_trigger_buffer_size = 5000  # Samples before trigger
+        self.post_trigger_buffer_size = 10000  # Samples after trigger
+        self.trigger_timeout = 5.0  # Seconds to wait for trigger before timeout
+        self.trigger_start_time = None
+        
+        # Pre-trigger buffer for capturing before trigger event
+        self.pre_trigger_ch1 = deque(maxlen=self.pre_trigger_buffer_size)
+        self.pre_trigger_ch2 = deque(maxlen=self.pre_trigger_buffer_size)
+        self.pre_trigger_timestamps = deque(maxlen=self.pre_trigger_buffer_size)
 
         # Threading
         self.acquisition_thread = None
@@ -189,6 +205,67 @@ class LogicAnalyzerManager:
         except Exception as e:
             return False
 
+    def set_trigger_config(self, enabled, channel='ch1', edge='rising', level=0):
+        """Configure trigger settings"""
+        try:
+            self.trigger_enabled = bool(enabled)
+            if channel in ['ch1', 'ch2']:
+                self.trigger_channel = channel
+            if edge in ['rising', 'falling']:
+                self.trigger_edge = edge
+            # Level should be -1, 0, or 1 (differential value)
+            if level in [-1, 0, 1]:
+                self.trigger_level = level
+            
+            # Reset trigger state when reconfiguring
+            if self.trigger_enabled:
+                self.trigger_armed = True
+                self.trigger_captured = False
+                self.trigger_displayed = False
+                self.trigger_start_time = time.time()
+                self.pre_trigger_ch1.clear()
+                self.pre_trigger_ch2.clear()
+                self.pre_trigger_timestamps.clear()
+            
+            return True
+        except Exception as e:
+            print(f"Error setting trigger config: {e}")
+            return False
+
+    def _check_trigger_condition(self, prev_ch_value, curr_ch_value):
+        """Check if trigger condition is met"""
+        if not self.trigger_enabled or not self.trigger_armed:
+            return False
+        
+        if self.trigger_edge == 'rising':
+            # Rising edge: transition from <= 0 to >= 1
+            return prev_ch_value <= 0 and curr_ch_value >= 1
+        elif self.trigger_edge == 'falling':
+            # Falling edge: transition from >= 1 to <= 0
+            return prev_ch_value >= 1 and curr_ch_value <= 0
+        
+        return False
+
+    def arm_trigger(self):
+        """Arm the trigger to wait for the next trigger event"""
+        self.trigger_armed = True
+        self.trigger_captured = False
+        self.trigger_displayed = False
+        self.trigger_start_time = time.time()
+        self.ch1_diff_buffer.clear()
+        self.ch2_diff_buffer.clear()
+        self.timestamp_buffer.clear()
+        self.pre_trigger_ch1.clear()
+        self.pre_trigger_ch2.clear()
+        self.pre_trigger_timestamps.clear()
+        return True
+
+    def disarm_trigger(self):
+        """Disarm the trigger"""
+        self.trigger_armed = False
+        self.trigger_captured = False
+        return True
+
 
 
     def _acquisition_loop(self):
@@ -196,6 +273,9 @@ class LogicAnalyzerManager:
         sample_interval = 1.0 / self.sampling_rate
         last_sample_time = time.time()
         sample_count = 0
+        prev_ch1_diff = 0
+        prev_ch2_diff = 0
+        post_trigger_count = 0
 
         while self.acquiring and not self.stop_event.is_set():
             try:
@@ -220,19 +300,80 @@ class LogicAnalyzerManager:
                     # Channel 2: pin22 (pos) - pin23 (neg)
                     ch2_diff = ch2_pos - ch2_neg
 
-                    # Store the differential values with thread safety
+                    # Handle trigger logic
+                    trigger_fired = False
+                    
                     with self.buffer_lock:
-                        self.ch1_diff_buffer.append(ch1_diff)
-                        self.ch2_diff_buffer.append(ch2_diff)
-                        self.timestamp_buffer.append(current_time)
+                        # If trigger is enabled and armed, check for trigger condition
+                        if self.trigger_enabled and self.trigger_armed and not self.trigger_captured:
+                            trigger_channel_prev = prev_ch1_diff if self.trigger_channel == 'ch1' else prev_ch2_diff
+                            trigger_channel_curr = ch1_diff if self.trigger_channel == 'ch1' else ch2_diff
+                            
+                            if self._check_trigger_condition(trigger_channel_prev, trigger_channel_curr):
+                                # Trigger condition met!
+                                self.trigger_captured = True
+                                self.trigger_displayed = False  # Will be set to True when first streamed
+                                trigger_fired = True
+                                post_trigger_count = 0
+                                
+                                # Move pre-trigger data to main buffer
+                                if len(self.pre_trigger_ch1) > 0:
+                                    self.ch1_diff_buffer.extend(self.pre_trigger_ch1)
+                                    self.ch2_diff_buffer.extend(self.pre_trigger_ch2)
+                                    self.timestamp_buffer.extend(self.pre_trigger_timestamps)
+                                
+                                # Emit trigger event to frontend
+                                self.socketio.emit('trigger_captured', {
+                                    'trigger_channel': self.trigger_channel,
+                                    'trigger_edge': self.trigger_edge,
+                                    'trigger_time': current_time
+                                })
+                        
+                        # Determine capture mode and destination buffer
+                        if self.trigger_enabled:
+                            # Trigger mode is active
+                            if self.trigger_captured:
+                                # Post-trigger capture: fill main buffer
+                                self.ch1_diff_buffer.append(ch1_diff)
+                                self.ch2_diff_buffer.append(ch2_diff)
+                                self.timestamp_buffer.append(current_time)
+                                post_trigger_count += 1
+                                
+                                # Stop capturing after post-trigger buffer is full
+                                if post_trigger_count >= self.post_trigger_buffer_size:
+                                    self.trigger_armed = False
+                            else:
+                                # Waiting for trigger: accumulate only in pre-trigger buffer
+                                self.pre_trigger_ch1.append(ch1_diff)
+                                self.pre_trigger_ch2.append(ch2_diff)
+                                self.pre_trigger_timestamps.append(current_time)
+                        else:
+                            # Continuous capture mode (trigger disabled)
+                            self.ch1_diff_buffer.append(ch1_diff)
+                            self.ch2_diff_buffer.append(ch2_diff)
+                            self.timestamp_buffer.append(current_time)
+                        
+                        # Check for trigger timeout
+                        if self.trigger_enabled and self.trigger_armed and not self.trigger_captured:
+                            if self.trigger_start_time and current_time - self.trigger_start_time > self.trigger_timeout:
+                                # Timeout - disarm and emit timeout event
+                                self.trigger_armed = False
+                                self.socketio.emit('trigger_timeout', {
+                                    'trigger_channel': self.trigger_channel,
+                                    'trigger_edge': self.trigger_edge,
+                                    'timeout_duration': self.trigger_timeout
+                                })
 
                     sample_count += 1
+                    prev_ch1_diff = ch1_diff
+                    prev_ch2_diff = ch2_diff
                     last_sample_time = current_time
 
                 # Small sleep to prevent CPU hogging
                 time.sleep(0.0001)
 
             except Exception as e:
+                print(f"Acquisition loop error: {e}")
                 break
 
     def _analyze_pwm_signal(self, data, timestamps):
@@ -320,6 +461,7 @@ class LogicAnalyzerManager:
     def _streaming_loop(self):
         """Stream differential data to frontend"""
         stream_count = 0
+        last_rearm_time = 0
 
         while self.acquiring and not self.stop_event.is_set():
             try:
@@ -334,33 +476,81 @@ class LogicAnalyzerManager:
                 # Get buffer sizes with thread safety
                 with self.buffer_lock:
                     buffer_size = len(self.ch1_diff_buffer)
-                    if buffer_size == 0:
-                        continue
+                    
+                    # In trigger mode: stream after trigger is captured
+                    if self.trigger_enabled:
+                        if not self.trigger_captured:
+                            # Waiting for trigger - don't stream anything to keep display frozen
+                            continue
+                        
+                        # Still capturing post-trigger - don't stream yet to prevent movement
+                        if self.trigger_armed:
+                            continue
+                        
+                        # Trigger complete - check if we should auto-rearm for live continuous capture
+                        if self.trigger_displayed and current_time - last_rearm_time > 0.2:
+                            # Auto-rearm for next capture after small delay (allows display update)
+                            self.trigger_displayed = False
+                            self.trigger_captured = False
+                            self.trigger_armed = True
+                            self.trigger_start_time = time.time()
+                            self.ch1_diff_buffer.clear()
+                            self.ch2_diff_buffer.clear()
+                            self.timestamp_buffer.clear()
+                            self.pre_trigger_ch1.clear()
+                            self.pre_trigger_ch2.clear()
+                            self.pre_trigger_timestamps.clear()
+                            last_rearm_time = current_time
+                            continue
+                        
+                        # Check if we have data to send
+                        if buffer_size == 0:
+                            continue
+                    else:
+                        # Continuous mode - always stream if we have data
+                        if buffer_size == 0:
+                            continue
 
                     # Calculate samples to send based on timebase
-                    # timebase is seconds per division, we want ~10 divisions worth of data
-                    # But limit to prevent browser overload (max 5000 samples)
                     target_time_window = self.timebase * 10  # 10 divisions
                     target_samples = int(target_time_window * self.sampling_rate)
-                    max_samples = min(target_samples, buffer_size, 5000)  # Cap at 5000 samples
-                    max_samples = max(max_samples, 1000)  # Minimum 1000 samples for stability
+                    max_samples = min(target_samples, buffer_size)  # No artificial cap, use all available
+                    max_samples = max(max_samples, 500)  # Minimum 500 samples for stability
 
-                    # For proper display, we need to ensure we send exactly the right number of samples
-                    # that fit the display width. The frontend expects data that can be scaled to fit 500px width
-                    # So we should send samples that represent the full time window properly
-                    start_idx = max(0, buffer_size - max_samples)
-
-                    # Prepare data for frontend - copy data while holding lock
-                    data_to_send = {
-                        'timestamp': current_time,
-                        'sampling_rate': self.sampling_rate,
-                        'timebase': self.timebase,
-                        'scale': self.amplitude_scale,
-                        'channel_mode': self.channel_mode,
-                        'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
-                        'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
-                        'timestamps': list(self.timestamp_buffer)[start_idx:]
-                    }
+                    # Send data based on mode
+                    if self.trigger_enabled and self.trigger_captured and not self.trigger_armed:
+                        # Trigger mode: respect timebase windowing on captured data
+                        # Calculate how many samples to show based on timebase
+                        start_idx = max(0, buffer_size - max_samples)
+                        data_to_send = {
+                            'timestamp': current_time,
+                            'sampling_rate': self.sampling_rate,
+                            'timebase': self.timebase,
+                            'scale': self.amplitude_scale,
+                            'channel_mode': self.channel_mode,
+                            'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
+                            'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
+                            'timestamps': list(self.timestamp_buffer)[start_idx:],
+                            'trigger_armed': self.trigger_armed,
+                            'trigger_captured': self.trigger_captured
+                        }
+                        # Mark as displayed
+                        self.trigger_displayed = True
+                    else:
+                        # Continuous mode: rolling window
+                        start_idx = max(0, buffer_size - max_samples)
+                        data_to_send = {
+                            'timestamp': current_time,
+                            'sampling_rate': self.sampling_rate,
+                            'timebase': self.timebase,
+                            'scale': self.amplitude_scale,
+                            'channel_mode': self.channel_mode,
+                            'ch1_data': list(self.ch1_diff_buffer)[start_idx:],
+                            'ch2_data': list(self.ch2_diff_buffer)[start_idx:],
+                            'timestamps': list(self.timestamp_buffer)[start_idx:],
+                            'trigger_armed': False,
+                            'trigger_captured': False
+                        }
 
                 # Send data to frontend
                 self.socketio.emit('logic_analyzer_data', data_to_send)
@@ -378,5 +568,13 @@ class LogicAnalyzerManager:
             'channel_mode': self.channel_mode,
             'timebase': self.timebase,
             'amplitude_scale': self.amplitude_scale,
-            'buffer_size': len(self.ch1_diff_buffer)
+            'buffer_size': len(self.ch1_diff_buffer),
+            'trigger_enabled': self.trigger_enabled,
+            'trigger_armed': self.trigger_armed,
+            'trigger_captured': self.trigger_captured,
+            'trigger_displayed': self.trigger_displayed,
+            'trigger_channel': self.trigger_channel,
+            'trigger_edge': self.trigger_edge,
+            'trigger_level': self.trigger_level,
+            'pre_trigger_size': len(self.pre_trigger_ch1)
         }

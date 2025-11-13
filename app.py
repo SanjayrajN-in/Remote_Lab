@@ -22,6 +22,9 @@ import io
 # Import logic analyzer
 from logic_analyzer import init_logic_analyzer_manager, get_logic_analyzer_manager
 
+# Import firmware validator
+from firmware_validator import FirmwareValidator
+
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = '.'
 app.config['ALLOWED_EXTENSIONS'] = {'hex', 'bin'}
@@ -32,6 +35,9 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Initialize logic analyzer (moved after socketio initialization)
 logic_analyzer_manager = None
+
+# Initialize firmware validator (will be reloaded for each validation)
+firmware_validator = None
 
 # Global variables for video and audio streaming
 video_capture = None
@@ -53,12 +59,20 @@ upload_in_progress = False
 
 # Global variables for hub controls
 hub_controls = []
+hub_controls_lock = threading.Lock()  # Thread safety for hub control modifications
 control_values = {}
 serial_value_patterns = {}
+deleted_reader_controls = {}  # Track deleted reader control names with timestamps to prevent auto-recreation
+deleted_reader_controls_lock = threading.Lock()  # Thread safety for deleted controls tracking
+DELETED_CONTROL_TIMEOUT = 5  # Seconds - after this time, deleted controls can be recreated
 
 def detect_control_type(value_name, context=""):
     """Detect the appropriate control type based on value name and context"""
     name_lower = value_name.lower()
+
+    # Skip reserved/internal oscilloscope parameters
+    if any(keyword in name_lower for keyword in ['timebase', 'amplitude', 'scale', 'offset']):
+        return None
 
     # Binary/On-Off controls (detect first as they have specific value options)
     if any(keyword in name_lower for keyword in ['enable', 'disable', 'on', 'off', 'state', 'status', 'dir', 'direction']):
@@ -313,8 +327,8 @@ def analyze_serial_data_for_controls(data):
     return list(serial_value_patterns.keys())
 
 def create_hub_control(value_name, device_info=None, control_type=None):
-    """Create a hub control for a detected value"""
-    global hub_controls
+    """Create a hub control for a detected value - thread-safe"""
+    global hub_controls, deleted_reader_controls, hub_controls_lock, deleted_reader_controls_lock
 
     # Validate input
     if not value_name or not isinstance(value_name, str):
@@ -324,42 +338,66 @@ def create_hub_control(value_name, device_info=None, control_type=None):
     if not value_name:
         return None
 
-    # Check if control already exists
-    for control in hub_controls:
-        if control['name'] == value_name:
-            return control
+    # Thread-safe check for deleted controls (with timeout)
+    with deleted_reader_controls_lock:
+        value_name_lower = value_name.lower()
+        # Check if this control was explicitly deleted by the user
+        if value_name_lower in deleted_reader_controls:
+            deletion_time = deleted_reader_controls[value_name_lower]
+            time_since_deletion = time.time() - deletion_time
+            if time_since_deletion < DELETED_CONTROL_TIMEOUT:
+                # Still within timeout period - skip recreation
+                print(f"Skipping auto-creation of reader control '{value_name}' - deleted {time_since_deletion:.1f}s ago")
+                return None
+            else:
+                # Timeout expired - remove from deleted set to allow recreation
+                del deleted_reader_controls[value_name_lower]
+                print(f"Deletion timeout expired for '{value_name}' - allowing recreation")
 
-    # Use provided type or detect control type
-    if control_type:
-        # Validate control type
-        valid_types = ['slider', 'toggle', 'reader']
-        if control_type not in valid_types:
-            control_type = 'slider'
+    # Thread-safe check and creation
+    with hub_controls_lock:
+        # Check if control already exists
+        for control in hub_controls:
+            if control['name'] == value_name:
+                return control
 
-        # Get base config for the specified type
-        control_config = detect_control_type(value_name)
-        # Override the type
-        control_config['type'] = control_type
-    else:
-        # Detect control type automatically
-        control_config = detect_control_type(value_name)
+        # Use provided type or detect control type
+        if control_type:
+            # Validate control type
+            valid_types = ['slider', 'toggle', 'reader']
+            if control_type not in valid_types:
+                control_type = 'slider'
 
-    # Generate unique ID
-    control_id = f"control_{int(time.time() * 1000)}_{len(hub_controls)}"
+            # Get base config for the specified type
+            control_config = detect_control_type(value_name)
+            # Skip if control type is reserved
+            if control_config is None:
+                return None
+            # Override the type
+            control_config['type'] = control_type
+        else:
+            # Detect control type automatically
+            control_config = detect_control_type(value_name)
+            # Skip if control type is reserved
+            if control_config is None:
+                return None
 
-    # Create control object
-    control = {
-        'id': control_id,
-        'name': value_name,
-        'type': control_config['type'],
-        'config': control_config,
-        'device': device_info or {'type': 'auto', 'port': 'auto'},
-        'created': time.time(),
-        'enabled': True
-    }
+        # Generate unique ID
+        control_id = f"control_{int(time.time() * 1000)}_{len(hub_controls)}"
 
-    hub_controls.append(control)
-    return control
+        # Create control object
+        control = {
+            'id': control_id,
+            'name': value_name,
+            'type': control_config['type'],
+            'config': control_config,
+            'device': device_info or {'type': 'auto', 'port': 'auto'},
+            'created': time.time(),
+            'enabled': True
+        }
+
+        hub_controls.append(control)
+        return control
 
 def update_control_value(control_id, value):
     """Update the value of a control"""
@@ -1059,7 +1097,7 @@ def handle_stop_streaming():
 
 @socketio.on('start_serial_monitor')
 def handle_start_serial_monitor(data):
-    global serial_monitoring_active, serial_connection, hub_controls, serial_value_patterns
+    global serial_monitoring_active, serial_connection, hub_controls, serial_value_patterns, deleted_reader_controls
     try:
         port = data.get('port')
         baudrate = data.get('baudrate', 9600)
@@ -1073,6 +1111,7 @@ def handle_start_serial_monitor(data):
             # This ensures fresh detection of controls from the new firmware
             hub_controls.clear()
             serial_value_patterns.clear()
+            deleted_reader_controls.clear()  # Reset deleted controls list for fresh firmware
             # Clear detected commands
             if hasattr(analyze_serial_data_for_controls, 'detected_commands'):
                 analyze_serial_data_for_controls.detected_commands.clear()
@@ -1103,6 +1142,9 @@ def handle_stop_serial_monitor():
             print(f"Error closing serial connection: {e}")
         serial_connection = None
 
+    # Stop serial plot if it's running
+    emit('stop_serial_plot', {})
+    
     emit('serial_status', {'status': 'stopped'})
 
 @socketio.on('send_serial_data')
@@ -1122,17 +1164,32 @@ def handle_send_serial_data(data):
 def handle_create_hub_control(data):
     try:
         value_name = data.get('name')
+        if not value_name or not isinstance(value_name, str):
+            emit('hub_control_error', {'message': 'Control name is required and must be a string'})
+            return
+
+        value_name = value_name.strip()
         if not value_name:
-            emit('hub_control_error', {'message': 'Control name is required'})
+            emit('hub_control_error', {'message': 'Control name cannot be empty'})
             return
 
         control_type = data.get('type', 'slider')  # Default to slider if not specified
         device_info = data.get('device', {'type': 'auto', 'port': 'auto'})
 
+        # Validate control type
+        if not isinstance(control_type, str) or control_type not in ['slider', 'toggle', 'reader']:
+            control_type = 'slider'
+
+        # Validate device info
+        if not isinstance(device_info, dict):
+            device_info = {'type': 'auto', 'port': 'auto'}
+
         control = create_hub_control(value_name, device_info, control_type)
 
         if control is None:
-            emit('hub_control_error', {'message': 'Failed to create control - invalid parameters'})
+            # Control creation returned None - could be due to reserved keywords or deleted control
+            # Don't emit error for auto-creation attempts to avoid spam
+            print(f"Control creation skipped for '{value_name}' (reserved or deleted)")
             return
 
         emit('hub_control_created', {'control': control})
@@ -1168,7 +1225,7 @@ def handle_update_hub_control(data):
 
 @socketio.on('delete_hub_control')
 def handle_delete_hub_control(data):
-    global hub_controls, control_values
+    global hub_controls, control_values, deleted_reader_controls, hub_controls_lock, deleted_reader_controls_lock
     try:
         control_id = data.get('id')
         if not control_id:
@@ -1182,16 +1239,24 @@ def handle_delete_hub_control(data):
 
         control_id = control_id.strip()
 
-        # Find and remove the control
-        for i, control in enumerate(hub_controls):
-            if control['id'] == control_id:
-                deleted_control = hub_controls.pop(i)
-                # Clean up control values
-                if control_id in control_values:
-                    del control_values[control_id]
+        # Thread-safe deletion
+        with hub_controls_lock:
+            # Find and remove the control
+            for i, control in enumerate(hub_controls):
+                if control['id'] == control_id:
+                    deleted_control = hub_controls.pop(i)
+                    # Clean up control values
+                    if control_id in control_values:
+                        del control_values[control_id]
+                    
+                    # If this is a reader control, track it to prevent auto-recreation (with timeout)
+                    if deleted_control.get('type') == 'reader':
+                        with deleted_reader_controls_lock:
+                            deleted_reader_controls[deleted_control['name'].lower()] = time.time()
+                        print(f"Marked reader control '{deleted_control['name']}' as deleted to prevent auto-recreation (timeout: {DELETED_CONTROL_TIMEOUT}s)")
 
-                emit('hub_control_deleted', {'control': deleted_control})
-                return
+                    emit('hub_control_deleted', {'control': deleted_control})
+                    return
 
         # Control not found - this is not necessarily an error since controls might be deleted from other sessions
         print(f"Control {control_id} not found for deletion (might already be deleted)")
@@ -1219,11 +1284,23 @@ def handle_send_control_command(data):
     except Exception as e:
         emit('hub_control_error', {'message': str(e)})
 
+@socketio.on('connect')
+def handle_client_connect():
+    """Handle new client connection"""
+    print("Client connected")
+
+@socketio.on('disconnect')
+def handle_client_disconnect():
+    """Clean up all resources when client disconnects (e.g., page reload)"""
+    print("Client disconnected - cleaning up all resources")
+    cleanup_all_resources()
+    print("Resource cleanup completed")
+
 @app.route('/')
 def index():
-    devices = find_devices()
-    firmware = find_firmware()
-    return send_from_directory('page', 'remotelab.html')
+     devices = find_devices()
+     firmware = find_firmware()
+     return render_template('remotelab.html')
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -1245,12 +1322,63 @@ def upload_file():
 
     if file and allowed_file(file.filename):
         filename = secure_filename(file.filename)
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'firmware')
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], 'firmware.hex')
         file.save(file_path)
 
-        return jsonify({'message': 'File uploaded successfully', 'filename': 'firmware'}), 200
+        return jsonify({'message': 'File uploaded successfully', 'filename': 'firmware.hex'}), 200
 
     return jsonify({'error': 'Invalid file type'}), 400
+
+@app.route('/validate-firmware', methods=['POST'])
+def validate_firmware_endpoint():
+    """Validate firmware against pin usage rules before flashing"""
+    try:
+        chip_type = request.form.get('chip_type')
+        
+        if not chip_type:
+            return jsonify({'error': 'Chip type is required'}), 400
+        
+        firmware_file = 'firmware.hex'
+        if not os.path.exists(firmware_file):
+            return jsonify({'error': 'No firmware file uploaded'}), 400
+        
+        # Create fresh validator instance to ensure config is reloaded
+        validator = FirmwareValidator()
+        
+        # Run validation
+        passed, message, violations = validator.validate_firmware(firmware_file, chip_type)
+        
+        return jsonify({
+            'passed': passed,
+            'message': message,
+            'violations': violations
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get-chips', methods=['GET'])
+def get_available_chips():
+    """Get list of available chip types with their configurations"""
+    try:
+        validator = FirmwareValidator()
+        chips = validator.list_available_chips()
+        return jsonify({'chips': chips}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/get-chip-rules/<chip_type>', methods=['GET'])
+def get_chip_rules(chip_type):
+    """Get pin restriction rules for a specific chip"""
+    try:
+        validator = FirmwareValidator()
+        chip_info = validator.get_chip_info(chip_type)
+        if chip_info:
+            return jsonify(chip_info), 200
+        else:
+            return jsonify({'error': f'Chip type {chip_type} not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/flash', methods=['POST'])
 def flash_firmware():
@@ -1261,12 +1389,22 @@ def flash_firmware():
 
     device_type = request.form.get('device_type')
     port = request.form.get('port')
-    chip_type = request.form.get('chip_type', 'atmega328p')  # Default fallback
 
     if not device_type or not port:
         return jsonify({'error': 'Device type and port are required'}), 400
 
-    firmware_file = 'firmware'
+    # Get chip type from selected device
+    devices = find_devices()
+    chip_type = None
+    for dev_type, dev_port, dev_name, dev_chip in devices:
+        if dev_type == device_type and dev_port == port:
+            chip_type = dev_chip
+            break
+
+    if not chip_type:
+        return jsonify({'error': 'Selected device not found or chip type could not be determined'}), 400
+
+    firmware_file = 'firmware.hex'
     if not os.path.exists(firmware_file):
         return jsonify({'error': 'No firmware file uploaded. Please upload a firmware file first.'}), 400
 
@@ -1319,6 +1457,54 @@ def get_network_info():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+def cleanup_all_resources():
+    """Clean up all active resources (video, audio, serial, logic analyzer)"""
+    global video_streaming_active, audio_streaming_active, serial_monitoring_active
+    global video_capture, audio_stream, serial_connection
+    
+    # Stop video streaming
+    if video_streaming_active or video_capture:
+        video_streaming_active = False
+        if video_capture:
+            try:
+                video_capture.release()
+            except Exception as e:
+                print(f"Error stopping video stream: {e}")
+            video_capture = None
+    
+    # Stop audio streaming
+    if audio_streaming_active or audio_stream:
+        audio_streaming_active = False
+        if PYAUDIO_AVAILABLE and audio_stream:
+            try:
+                audio_stream.stop_stream()
+                audio_stream.close()
+            except Exception as e:
+                print(f"Error stopping audio stream: {e}")
+            audio_stream = None
+    
+    # Stop serial monitoring and plot
+    if serial_monitoring_active or serial_connection:
+        serial_monitoring_active = False
+        if serial_connection and serial_connection.is_open:
+            try:
+                serial_connection.close()
+            except Exception as e:
+                print(f"Error closing serial connection: {e}")
+            serial_connection = None
+        # Notify frontend to stop serial plot
+        try:
+            socketio.emit('stop_serial_plot', {})
+        except Exception as e:
+            print(f"Error emitting stop_serial_plot: {e}")
+    
+    # Stop logic analyzer if running
+    try:
+        if logic_analyzer_manager:
+            logic_analyzer_manager.stop_acquisition()
+    except Exception as e:
+        print(f"Error stopping logic analyzer: {e}")
 
 def initialize_logic_analyzer():
     """Initialize logic analyzer manager after app is created"""
@@ -1399,6 +1585,122 @@ def clear_logic_analyzer():
             logic_analyzer_manager.timestamp_buffer.clear()
 
         return jsonify({'status': 'cleared'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/config', methods=['POST'])
+def configure_trigger():
+    """Configure logic analyzer trigger settings"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No configuration data provided'}), 400
+
+        enabled = data.get('enabled', False)
+        channel = data.get('channel', 'ch1')
+        edge = data.get('edge', 'rising')
+        level = data.get('level', 0)
+
+        success = logic_analyzer_manager.set_trigger_config(enabled, channel, edge, level)
+        
+        if success:
+            status = logic_analyzer_manager.get_status()
+            return jsonify({
+                'status': 'configured',
+                'trigger_config': {
+                    'enabled': logic_analyzer_manager.trigger_enabled,
+                    'channel': logic_analyzer_manager.trigger_channel,
+                    'edge': logic_analyzer_manager.trigger_edge,
+                    'level': logic_analyzer_manager.trigger_level,
+                    'armed': logic_analyzer_manager.trigger_armed,
+                    'captured': logic_analyzer_manager.trigger_captured
+                }
+            }), 200
+        else:
+            return jsonify({'error': 'Failed to configure trigger'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/arm', methods=['POST'])
+def arm_trigger():
+    """Arm the trigger to wait for the next trigger event"""
+    try:
+        logic_analyzer_manager.arm_trigger()
+        return jsonify({
+            'status': 'armed',
+            'trigger_armed': logic_analyzer_manager.trigger_armed,
+            'trigger_captured': logic_analyzer_manager.trigger_captured
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/disarm', methods=['POST'])
+def disarm_trigger():
+    """Disarm the trigger"""
+    try:
+        logic_analyzer_manager.disarm_trigger()
+        return jsonify({
+            'status': 'disarmed',
+            'trigger_armed': logic_analyzer_manager.trigger_armed
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/status', methods=['GET'])
+def get_trigger_status():
+    """Get trigger status"""
+    try:
+        return jsonify({
+            'trigger_enabled': logic_analyzer_manager.trigger_enabled,
+            'trigger_armed': logic_analyzer_manager.trigger_armed,
+            'trigger_captured': logic_analyzer_manager.trigger_captured,
+            'trigger_channel': logic_analyzer_manager.trigger_channel,
+            'trigger_edge': logic_analyzer_manager.trigger_edge,
+            'trigger_level': logic_analyzer_manager.trigger_level
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/enable', methods=['POST'])
+def enable_trigger():
+    """Enable trigger mode and auto-arm for next pulse"""
+    try:
+        data = request.get_json() or {}
+        channel = data.get('channel', 'ch1')
+        edge = data.get('edge', 'rising')
+        
+        # Configure and enable trigger
+        logic_analyzer_manager.set_trigger_config(True, channel, edge)
+        # Auto-arm to wait for first pulse
+        logic_analyzer_manager.arm_trigger()
+        
+        return jsonify({
+            'status': 'trigger_enabled',
+            'trigger_armed': logic_analyzer_manager.trigger_armed,
+            'message': f'Trigger enabled - waiting for {edge} edge on {channel}'
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/logic/trigger/disable', methods=['POST'])
+def disable_trigger():
+    """Disable trigger mode and switch to continuous capture"""
+    try:
+        logic_analyzer_manager.trigger_enabled = False
+        logic_analyzer_manager.trigger_armed = False
+        logic_analyzer_manager.trigger_captured = False
+        logic_analyzer_manager.trigger_displayed = False
+        
+        # Clear buffers to start fresh continuous capture
+        with logic_analyzer_manager.buffer_lock:
+            logic_analyzer_manager.ch1_diff_buffer.clear()
+            logic_analyzer_manager.ch2_diff_buffer.clear()
+            logic_analyzer_manager.timestamp_buffer.clear()
+        
+        return jsonify({
+            'status': 'trigger_disabled',
+            'message': 'Switched to continuous capture mode'
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -1510,7 +1812,8 @@ def detect_hub_controls():
         new_controls = []
         for value_name in detected_values:
             control = create_hub_control(value_name)
-            new_controls.append(control)
+            if control:  # Only add if control was created (not None)
+                new_controls.append(control)
 
         return jsonify({
             'detected_values': detected_values,
