@@ -652,6 +652,11 @@
                     updateVideoFrame(data.frame);
                 });
 
+                // Handle audio data
+                socket.on('audio_data', function (data) {
+                    playAudioData(data.audio);
+                });
+
                 // Handle serial data
                 socket.on('serial_data', function (data) {
                     addToSerialTerminal(data.data);
@@ -855,6 +860,132 @@
             }
             if (videoPlaceholder) {
                 videoPlaceholder.style.display = 'flex';
+            }
+        }
+
+        // Audio playback functions with drift detection
+        let audioContext = null;
+        let audioQueue = [];
+        let isPlayingAudio = false;
+        let audioStartTime = 0;
+        let audioSamplesPlayed = 0;
+        let audioQueueStats = { maxSize: 0, dropsDetected: 0 };
+        let lastQueueCheckTime = 0;
+
+        function initAudioContext() {
+            if (!audioContext) {
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    audioContext = new AudioContext({ sampleRate: 44100 });
+                    console.log('Audio context initialized at 44.1kHz');
+                } catch (e) {
+                    console.error('Failed to initialize audio context:', e);
+                }
+            }
+            return audioContext;
+        }
+
+        function playAudioData(hexData) {
+            if (!initAudioContext()) {
+                console.error('Audio context not available');
+                return;
+            }
+
+            try {
+                // Convert hex string to byte array
+                const bytes = new Uint8Array(hexData.match(/../g).map(x => parseInt(x, 16)));
+                
+                // Convert byte array to Int16 samples
+                const audioBuffer = new Int16Array(bytes.buffer);
+                
+                // Create a PCM audio buffer (4096 samples at 44.1kHz = ~93ms)
+                const frameCount = audioBuffer.length;
+                const audioData = audioContext.createBuffer(1, frameCount, 44100);
+                const channelData = audioData.getChannelData(0);
+                
+                // Convert Int16 to float (-1.0 to 1.0 range)
+                for (let i = 0; i < frameCount; i++) {
+                    channelData[i] = audioBuffer[i] / 32768.0;
+                }
+                
+                // Queue the audio for playback
+                audioQueue.push(audioData);
+                audioQueueStats.maxSize = Math.max(audioQueueStats.maxSize, audioQueue.length);
+                
+                // Log queue stats periodically
+                const now = Date.now();
+                if (now - lastQueueCheckTime > 5000) {
+                    console.log(`Audio Queue: size=${audioQueue.length}, max=${audioQueueStats.maxSize}, drops=${audioQueueStats.dropsDetected}`);
+                    lastQueueCheckTime = now;
+                    audioQueueStats.maxSize = audioQueue.length;
+                }
+                
+                // Start playback if not already playing
+                if (!isPlayingAudio) {
+                    playNextAudioBuffer();
+                }
+            } catch (e) {
+                console.error('Error processing audio data:', e);
+            }
+        }
+
+        const BUFFER_TARGET = 1.5; // Target 1.5 buffers for low-latency playback
+        const SAMPLE_RATE = 44100;
+        let currentSource = null;
+        let scheduleAheadTime = 0;
+
+        function playNextAudioBuffer() {
+            if (audioQueue.length === 0) {
+                isPlayingAudio = false;
+                currentSource = null;
+                audioStartTime = 0;
+                audioSamplesPlayed = 0;
+                return;
+            }
+
+            // Wait for minimum buffering before starting playback
+            if (audioQueue.length < BUFFER_TARGET && isPlayingAudio) {
+                setTimeout(playNextAudioBuffer, 10);
+                return;
+            }
+
+            isPlayingAudio = true;
+            const audioBuffer = audioQueue.shift();
+            
+            try {
+                currentSource = audioContext.createBufferSource();
+                currentSource.buffer = audioBuffer;
+                currentSource.connect(audioContext.destination);
+                
+                // Schedule based on samples already played to prevent drift
+                if (audioStartTime === 0) {
+                    audioStartTime = audioContext.currentTime;
+                    scheduleAheadTime = audioStartTime;
+                } else {
+                    // Check for drift: expected time vs actual buffer progression
+                    const expectedTime = audioStartTime + (audioSamplesPlayed / SAMPLE_RATE);
+                    const drift = audioContext.currentTime - expectedTime;
+                    
+                    // If drift exceeds 100ms, resync (prevents accumulation)
+                    if (Math.abs(drift) > 0.1) {
+                        console.warn(`Audio drift detected: ${(drift * 1000).toFixed(1)}ms, resyncing`);
+                        audioStartTime = audioContext.currentTime;
+                        scheduleAheadTime = audioStartTime;
+                    }
+                }
+                
+                // Play at the calculated time
+                currentSource.start(scheduleAheadTime);
+                audioSamplesPlayed += audioBuffer.length;
+                scheduleAheadTime += (audioBuffer.length / SAMPLE_RATE);
+                
+                // Schedule next buffer when this one finishes
+                currentSource.onended = playNextAudioBuffer;
+            } catch (e) {
+                console.error('Error playing audio buffer:', e);
+                currentSource = null;
+                audioQueueStats.dropsDetected++;
+                setTimeout(playNextAudioBuffer, 10);
             }
         }
 
@@ -1458,7 +1589,10 @@
             if (videoPlayBtn) {
                 videoPlayBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('start_streaming', { video: true, audio: false });
+                        // Get current audio state from UI
+                        const audioStopBtn = document.getElementById('audioStopBtn');
+                        const isAudioRunning = audioStopBtn && audioStopBtn.style.opacity === '1';
+                        socket.emit('start_streaming', { video: true, audio: isAudioRunning });
                         // Show stop button, hide play button
                         toggleVideoButtons(true);
                     } else {
@@ -1471,7 +1605,10 @@
             if (videoStopBtn) {
                 videoStopBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('stop_streaming');
+                        // Get current audio state from UI
+                        const audioStopBtn = document.getElementById('audioStopBtn');
+                        const isAudioRunning = audioStopBtn && audioStopBtn.style.opacity === '1';
+                        socket.emit('start_streaming', { video: false, audio: isAudioRunning });
                         // Show play button, hide stop button
                         toggleVideoButtons(false);
                     } else {
@@ -1484,7 +1621,10 @@
             if (audioMuteBtn) {
                 audioMuteBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('start_streaming', { video: false, audio: true });
+                        // Get current video state from UI
+                        const videoElement = document.getElementById('videoElement');
+                        const isVideoRunning = videoElement && videoElement.style.display !== 'none';
+                        socket.emit('start_streaming', { video: isVideoRunning, audio: true });
                         // Show stop button, hide start button
                         toggleAudioButtons(true);
                     } else {
@@ -1497,7 +1637,10 @@
             if (audioStopBtn) {
                 audioStopBtn.addEventListener('click', function () {
                     if (socket && socket.connected) {
-                        socket.emit('stop_streaming');
+                        // Get current video state from UI
+                        const videoElement = document.getElementById('videoElement');
+                        const isVideoRunning = videoElement && videoElement.style.display !== 'none';
+                        socket.emit('start_streaming', { video: isVideoRunning, audio: false });
                         // Show start button, hide stop button
                         toggleAudioButtons(false);
                     } else {
@@ -2277,6 +2420,20 @@
                     serialPlotData[channel].maxValue = Math.max(...window.serialValuePatterns[current].values);
                 }
             });
+
+            // Update all reader channel dropdowns with new values
+            updateAllReaderDropdowns();
+        }
+
+        // Update all reader channel dropdowns with detected serial values
+        function updateAllReaderDropdowns() {
+            if (!window.hubControls) return;
+            
+            window.hubControls.forEach(control => {
+                if (control.type === 'reader') {
+                    populateReaderChannelDropdown(control.id);
+                }
+            });
         }
 
         // Global variables for detected values
@@ -2520,6 +2677,20 @@
                                 </div>
                             </div>
 
+                            <!-- Serial Value Selection -->
+                            <div class="mt-3 pt-3 border-t border-white/10">
+                                <label class="block text-xs font-medium mb-1 text-gray-400">
+                                    Serial Value Channel
+                                </label>
+                                <select
+                                    id="reader-channel-${control.id}"
+                                    onchange="updateReaderChannel('${control.id}')"
+                                    class="w-full bg-black/30 border border-white/20 rounded px-2 py-1 text-sm focus:border-blue-400 focus:outline-none transition-colors"
+                                >
+                                    <option value="">Select Channel...</option>
+                                </select>
+                            </div>
+
                             <!-- Command Template with confirmation -->
                             <div class="mt-3 pt-3 border-t border-white/10">
                                 <label class="block text-xs font-medium mb-1 text-gray-400">
@@ -2555,9 +2726,11 @@
                 controlsContainer.insertAdjacentHTML('afterbegin', controlElement);
             }
 
-            // If this is a reader control, auto-focus its command input so the user can
-            // immediately paste/type the read pattern and confirm.
+            // If this is a reader control, populate channel dropdown and auto-focus input
             if (control.type === 'reader') {
+                // Populate the serial value channel dropdown
+                populateReaderChannelDropdown(control.id);
+                
                 setTimeout(() => {
                     const cmdInput = document.getElementById(`cmd-${control.id}`);
                     if (cmdInput) {
@@ -2698,6 +2871,64 @@
             }).catch(err => {
                 console.warn('REST fallback failed to update control:', err);
             });
+        }
+
+        // Populate reader channel dropdown with detected serial values
+        function populateReaderChannelDropdown(controlId) {
+            const select = document.getElementById(`reader-channel-${controlId}`);
+            if (!select) return;
+
+            // Get all available serial value patterns (includes auto-detected and custom patterns)
+            const values = Object.entries(window.serialValuePatterns || {})
+                .map(([name, info]) => ({
+                    name: name,
+                    lastValue: info.lastValue,
+                    isCustom: info.isCustom || false
+                }))
+                .sort((a, b) => {
+                    // Sort with custom patterns first, then alphabetically
+                    if (a.isCustom && !b.isCustom) return -1;
+                    if (!a.isCustom && b.isCustom) return 1;
+                    return a.name.localeCompare(b.name);
+                });
+
+            // Store current selection
+            const currentSelection = select.value;
+
+            // Clear and rebuild options
+            select.innerHTML = '<option value="">Select Channel...</option>';
+            
+            values.forEach(({ name, lastValue, isCustom }) => {
+                const option = document.createElement('option');
+                option.value = name;
+                const customLabel = isCustom ? ' [Custom]' : '';
+                option.textContent = `${name} (${lastValue.toFixed(2)})${customLabel}`;
+                option.setAttribute('data-is-custom', isCustom ? 'true' : 'false');
+                select.appendChild(option);
+            });
+
+            // Restore selection if it still exists
+            if (currentSelection && window.serialValuePatterns[currentSelection]) {
+                select.value = currentSelection;
+            }
+        }
+
+        // Update reader to show selected channel
+        function updateReaderChannel(controlId) {
+            const select = document.getElementById(`reader-channel-${controlId}`);
+            if (!select) return;
+
+            const selectedChannel = select.value;
+            if (!selectedChannel) return;
+
+            // Update the command template to read from this channel
+            const commandInput = document.getElementById(`cmd-${controlId}`);
+            if (commandInput) {
+                // Auto-suggest a command template based on the channel name
+                commandInput.value = `${selectedChannel}: {value}`;
+            }
+
+            console.log('[READER CHANNEL]', controlId, 'selected:', selectedChannel);
         }
 
         function confirmReaderCommand(controlId) {

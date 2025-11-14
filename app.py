@@ -8,6 +8,7 @@ import time
 import json
 import socket
 from werkzeug.utils import secure_filename
+from queue import Queue
 import cv2
 try:
     import pyaudio
@@ -47,6 +48,10 @@ video_streaming_active = False
 audio_streaming_active = False
 serial_monitoring_active = False
 
+# Non-blocking queues for video/audio to prevent emit() blocking
+video_frame_queue = Queue(maxsize=2)  # Keep only 2 frames max
+audio_data_queue = Queue(maxsize=2)  # Keep only 2 buffers max to minimize latency and prevent accumulation
+
 # Device configurations
 ARDUINO_IDS = {'2341', '2a03', '1a86'}
 ESP32_IDS = {'10c4', '303a'}
@@ -62,9 +67,13 @@ hub_controls = []
 hub_controls_lock = threading.Lock()  # Thread safety for hub control modifications
 control_values = {}
 serial_value_patterns = {}
-deleted_reader_controls = {}  # Track deleted reader control names with timestamps to prevent auto-recreation
+deleted_reader_controls = set()  # Track permanently deleted reader control names (prevent auto-recreation)
 deleted_reader_controls_lock = threading.Lock()  # Thread safety for deleted controls tracking
-DELETED_CONTROL_TIMEOUT = 5  # Seconds - after this time, deleted controls can be recreated
+
+# Streaming state locks to prevent race conditions
+streaming_state_lock = threading.Lock()
+video_init_in_progress = False
+audio_init_in_progress = False
 
 def detect_control_type(value_name, context=""):
     """Detect the appropriate control type based on value name and context"""
@@ -338,21 +347,14 @@ def create_hub_control(value_name, device_info=None, control_type=None):
     if not value_name:
         return None
 
-    # Thread-safe check for deleted controls (with timeout)
+    # Thread-safe check for deleted controls (permanently deleted)
     with deleted_reader_controls_lock:
         value_name_lower = value_name.lower()
         # Check if this control was explicitly deleted by the user
         if value_name_lower in deleted_reader_controls:
-            deletion_time = deleted_reader_controls[value_name_lower]
-            time_since_deletion = time.time() - deletion_time
-            if time_since_deletion < DELETED_CONTROL_TIMEOUT:
-                # Still within timeout period - skip recreation
-                print(f"Skipping auto-creation of reader control '{value_name}' - deleted {time_since_deletion:.1f}s ago")
-                return None
-            else:
-                # Timeout expired - remove from deleted set to allow recreation
-                del deleted_reader_controls[value_name_lower]
-                print(f"Deletion timeout expired for '{value_name}' - allowing recreation")
+            # Control was permanently deleted - don't recreate
+            print(f"Control creation skipped for '{value_name}' (reserved or deleted)")
+            return None
 
     # Thread-safe check and creation
     with hub_controls_lock:
@@ -588,17 +590,19 @@ def initialize_audio_stream():
             audio.terminate()
             return False
 
-        # Use optimized settings for cleaner audio - ensure consistent sample rate
-        SAMPLE_RATE = 48000  # Use 48kHz for better quality and compatibility
+        # Use optimized settings for cleaner audio - balance quality vs performance
+        SAMPLE_RATE = 44100  # Standard CD quality, more compatible and less bandwidth
+        FRAMES_PER_BUFFER = 4096  # Larger buffer (93ms) reduces jitter and network overhead
         audio_stream = audio.open(
             format=pyaudio.paInt16,
             channels=1,
             rate=SAMPLE_RATE,  # Consistent sample rate throughout pipeline
             input=True,
             input_device_index=input_device_index,
-            frames_per_buffer=2048  # Larger buffer for better stability
+            frames_per_buffer=FRAMES_PER_BUFFER,  # Larger buffer for better stability
+            stream_callback=None  # Use blocking mode for consistent timing
         )
-        print(f"Audio stream initialized at {SAMPLE_RATE}Hz")
+        print(f"Audio stream initialized at {SAMPLE_RATE}Hz with {FRAMES_PER_BUFFER} frame buffer")
         print("Audio stream initialized successfully")
         return True
     except Exception as e:
@@ -623,8 +627,8 @@ def initialize_serial_connection(port, baudrate=9600):
         return False
 
 def video_stream_thread():
-    """Thread for video streaming - optimized for performance"""
-    global video_capture, video_streaming_active
+    """Thread for video streaming - non-blocking with queue"""
+    global video_capture, video_streaming_active, video_frame_queue
 
     if not video_capture or not video_capture.isOpened():
         print("Video capture not available - exiting video thread")
@@ -651,9 +655,18 @@ def video_stream_thread():
                 if ret:
                     # Convert to base64 for transmission
                     frame_base64 = base64.b64encode(buffer).decode('utf-8')
-                    socketio.emit('video_frame', {'frame': frame_base64})
-                    consecutive_errors = 0
-                    last_frame_time = current_time
+                    try:
+                        # Use non-blocking queue to avoid blocking on socketio.emit
+                        video_frame_queue.put_nowait({'frame': frame_base64})
+                        consecutive_errors = 0
+                        last_frame_time = current_time
+                    except Exception as queue_error:
+                        # Queue is full, drop old frame (acceptable for video streaming)
+                        try:
+                            video_frame_queue.get_nowait()
+                            video_frame_queue.put_nowait({'frame': frame_base64})
+                        except:
+                            pass
                 else:
                     consecutive_errors += 1
                     print(f"Failed to encode video frame (#{consecutive_errors})")
@@ -678,36 +691,40 @@ def video_stream_thread():
     print("Video streaming thread stopped")
 
 def audio_stream_thread():
-    """Thread for audio streaming - optimized for performance"""
-    global audio_stream, audio_streaming_active
+    """Thread for audio streaming - non-blocking with queue"""
+    global audio_stream, audio_streaming_active, audio_data_queue
     if not PYAUDIO_AVAILABLE or not audio_stream:
         print("Audio not available - exiting audio thread")
         return
 
     consecutive_errors = 0
     max_consecutive_errors = 5  # Reduced for faster failure detection
-    buffer_size = 2048  # Match the configured buffer size
+    buffer_size = 4096  # Larger buffer for better stability (matches initialize_audio_stream)
+    sample_rate = 44100  # Must match frontend 48000Hz for resampling, but capture at 44100
+    frame_duration = buffer_size / sample_rate  # Duration of one buffer in seconds (~93ms)
 
-    print("Audio streaming thread started")
+    print(f"Audio streaming thread started - buffer size: {buffer_size}, sample rate: {sample_rate}Hz, frame duration: {frame_duration*1000:.1f}ms")
 
     while audio_streaming_active and audio_stream:
         try:
-            # Read audio data with timeout to prevent blocking
+            # Read audio data - this blocks for ~frame_duration naturally
+            # No additional sleep needed as read() is blocking
             data = audio_stream.read(buffer_size, exception_on_overflow=False)
 
             if data and len(data) > 0:
-                # Send raw binary data as hex to reduce processing overhead
-                socketio.emit('audio_data', {'audio': data.hex()})
-                consecutive_errors = 0  # Reset error counter on success
+                # Queue audio data non-blocking to avoid socketio.emit lock
+                try:
+                    audio_data_queue.put_nowait({'audio': data.hex()})
+                    consecutive_errors = 0  # Reset error counter on success
+                except Exception as queue_error:
+                    # Queue full, skip this frame (audio can handle dropped packets)
+                    # This prevents delay accumulation from stale buffered frames
+                    pass
             else:
                 consecutive_errors += 1
                 if consecutive_errors >= max_consecutive_errors:
                     print("Audio stream returning empty data, stopping thread")
                     break
-
-            # Optimized sleep timing for 48kHz audio (2048 samples = ~42.7ms)
-            # Sleep for slightly less than the buffer duration to maintain sync
-            time.sleep(0.040)  # ~40ms sleep for smooth streaming
 
         except Exception as e:
             consecutive_errors += 1
@@ -716,7 +733,7 @@ def audio_stream_thread():
                 print("Too many consecutive audio errors, stopping audio thread")
                 audio_streaming_active = False  # Signal to stop
                 break
-            time.sleep(0.1)  # Longer pause on error
+            time.sleep(0.01)  # Small pause on error
 
     print("Audio streaming thread stopped")
 
@@ -1005,6 +1022,67 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
         upload_in_progress = False
 
 # SocketIO event handlers
+def init_video_in_background():
+     """Initialize video in background thread to avoid blocking socket event loop"""
+     global video_streaming_active, video_capture, video_init_in_progress, streaming_state_lock
+     try:
+         print("Initializing video capture in background...")
+         with streaming_state_lock:
+             if video_init_in_progress:
+                 print("Video initialization already in progress, skipping")
+                 return
+             video_init_in_progress = True
+         
+         if initialize_video_capture():
+             print("Video capture initialized successfully, starting thread")
+             with streaming_state_lock:
+                 video_streaming_active = True
+             video_thread = threading.Thread(target=video_stream_thread)
+             video_thread.daemon = True
+             video_thread.start()
+             # Start dispatcher thread if not already running
+             start_media_dispatcher()
+             socketio.emit('streaming_status', {'type': 'video', 'status': 'started'})
+         else:
+             print("Failed to initialize video capture")
+             socketio.emit('streaming_status', {'type': 'video', 'status': 'error', 'message': 'Could not initialize camera'})
+     except Exception as e:
+         print(f"Error in video initialization: {e}")
+         socketio.emit('streaming_status', {'type': 'video', 'status': 'error', 'message': str(e)})
+     finally:
+         with streaming_state_lock:
+             video_init_in_progress = False
+
+def init_audio_in_background():
+    """Initialize audio in background thread to avoid blocking socket event loop"""
+    global audio_streaming_active, audio_stream, audio_init_in_progress, streaming_state_lock
+    try:
+        print("Initializing audio capture in background...")
+        with streaming_state_lock:
+            if audio_init_in_progress:
+                print("Audio initialization already in progress, skipping")
+                return
+            audio_init_in_progress = True
+        
+        if initialize_audio_stream():
+            print("Audio stream initialized successfully, starting thread")
+            with streaming_state_lock:
+                audio_streaming_active = True
+            audio_thread = threading.Thread(target=audio_stream_thread)
+            audio_thread.daemon = True
+            audio_thread.start()
+            # Start dispatcher thread if not already running
+            start_media_dispatcher()
+            socketio.emit('streaming_status', {'type': 'audio', 'status': 'started'})
+        else:
+            socketio.emit('streaming_status', {'type': 'audio', 'status': 'error', 'message': 'Could not initialize audio - no microphone detected'})
+    except Exception as e:
+        print(f"Error in audio initialization: {e}")
+        socketio.emit('streaming_status', {'type': 'audio', 'status': 'error', 'message': str(e)})
+    finally:
+        with streaming_state_lock:
+            audio_init_in_progress = False
+
 @socketio.on('start_streaming')
 def handle_start_streaming(data):
     global video_streaming_active, audio_streaming_active, video_capture, audio_stream
@@ -1013,19 +1091,10 @@ def handle_start_streaming(data):
         # Handle video streaming
         video_requested = data.get('video', False)
         if video_requested and not video_capture:
-            # Start video
-            print("Initializing video capture...")
-            if initialize_video_capture():
-                print("Video capture initialized successfully, starting thread")
-                video_streaming_active = True
-                video_thread = threading.Thread(target=video_stream_thread)
-                video_thread.daemon = True
-                video_thread.start()
-                print("Emitting video started status")
-                emit('streaming_status', {'type': 'video', 'status': 'started'})
-            else:
-                print("Failed to initialize video capture")
-                emit('streaming_status', {'type': 'video', 'status': 'error', 'message': 'Could not initialize camera'})
+            # Start video in background thread to avoid blocking socket event loop
+            init_thread = threading.Thread(target=init_video_in_background)
+            init_thread.daemon = True
+            init_thread.start()
         elif not video_requested and video_capture:
             # Stop video
             print("Stopping video capture...")
@@ -1041,16 +1110,10 @@ def handle_start_streaming(data):
         # Handle audio streaming
         audio_requested = data.get('audio', False)
         if audio_requested and not audio_stream:
-            # Start audio
-            if initialize_audio_stream():
-                audio_streaming_active = True
-                audio_thread = threading.Thread(target=audio_stream_thread)
-                audio_thread.daemon = True
-                audio_thread.start()
-                emit('streaming_status', {'type': 'audio', 'status': 'started'})
-            else:
-                # Audio failed but don't affect other streams
-                emit('streaming_status', {'type': 'audio', 'status': 'error', 'message': 'Could not initialize audio - no microphone detected'})
+            # Start audio in background thread to avoid blocking socket event loop
+            init_thread = threading.Thread(target=init_audio_in_background)
+            init_thread.daemon = True
+            init_thread.start()
         elif not audio_requested and audio_stream:
             # Stop audio
             print("Stopping audio capture...")
@@ -1249,11 +1312,11 @@ def handle_delete_hub_control(data):
                     if control_id in control_values:
                         del control_values[control_id]
                     
-                    # If this is a reader control, track it to prevent auto-recreation (with timeout)
+                    # If this is a reader control, track it to prevent auto-recreation
                     if deleted_control.get('type') == 'reader':
                         with deleted_reader_controls_lock:
-                            deleted_reader_controls[deleted_control['name'].lower()] = time.time()
-                        print(f"Marked reader control '{deleted_control['name']}' as deleted to prevent auto-recreation (timeout: {DELETED_CONTROL_TIMEOUT}s)")
+                            deleted_reader_controls.add(deleted_control['name'].lower())
+                        print(f"Marked reader control '{deleted_control['name']}' as permanently deleted")
 
                     emit('hub_control_deleted', {'control': deleted_control})
                     return
@@ -1824,6 +1887,61 @@ def detect_hub_controls():
         return jsonify({'error': str(e)}), 500
 
 
+
+dispatcher_thread_running = False
+dispatcher_lock = threading.Lock()
+
+def start_media_dispatcher():
+    """Start the media dispatcher thread if not already running"""
+    global dispatcher_thread_running, dispatcher_lock
+    
+    with dispatcher_lock:
+        if not dispatcher_thread_running:
+            dispatcher_thread_running = True
+            dispatcher = threading.Thread(target=media_dispatcher_thread)
+            dispatcher.daemon = True
+            dispatcher.start()
+
+def media_dispatcher_thread():
+    """Thread to dispatch queued video/audio data without blocking capture threads"""
+    global video_frame_queue, audio_data_queue, video_streaming_active, audio_streaming_active, dispatcher_thread_running
+    
+    print("Media dispatcher thread started")
+    
+    try:
+        while video_streaming_active or audio_streaming_active:
+            try:
+                # Emit queued video frames
+                while not video_frame_queue.empty() and video_streaming_active:
+                    try:
+                        frame_data = video_frame_queue.get_nowait()
+                        socketio.emit('video_frame', frame_data)
+                    except:
+                        break
+                
+                # Emit queued audio data - drain all queued frames to prevent accumulation
+                frames_emitted = 0
+                while not audio_data_queue.empty() and audio_streaming_active:
+                    try:
+                        audio_data = audio_data_queue.get_nowait()
+                        socketio.emit('audio_data', audio_data)
+                        frames_emitted += 1
+                    except:
+                        break
+                
+                # Log if queue is backing up (indicates frontend can't keep pace)
+                if audio_data_queue.qsize() > 5:
+                    print(f"⚠️ Audio queue backing up: {audio_data_queue.qsize()} frames queued")
+                
+                # Small sleep to prevent busy waiting
+                time.sleep(0.001)
+                
+            except Exception as e:
+                print(f"Error in media dispatcher: {e}")
+                time.sleep(0.01)
+    finally:
+        dispatcher_thread_running = False
+        print("Media dispatcher thread stopped")
 
 def print_network_info():
     """Print network information on startup"""
