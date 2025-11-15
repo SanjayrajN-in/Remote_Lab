@@ -158,9 +158,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            max-width: 100%;
-            max-height: 100%;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
             background: #000;
+            transition: transform 0.3s ease-out;
         }
 
         /* Status bar */
@@ -345,7 +347,7 @@
             <div class="controls">
                 <div class="control-group">
                     <label>Zoom:</label>
-                    <input type="range" id="zoomSlider" min="0.5" max="5" step="0.1" value="1">
+                    <input type="range" id="zoomSlider" min="1" max="5" step="0.1" value="1">
                     <span class="zoom-display" id="zoomDisplay">100%</span>
                 </div>
                 <button class="button" id="resetBtn" title="Reset view (R)">
@@ -456,32 +458,32 @@
     </div>
 
     <script>
-        const io = typeof window !== 'undefined' && window.io ? window.io : null;
-
         // Configuration
         const config = {
             maxZoom: 5,
-            minZoom: 0.5,
+            minZoom: 1,
             panSpeed: 20,
             zoomSensitivity: 0.1,
             fpsUpdateInterval: 1000
         };
 
         // State
-        let state = {
-            zoom: 1,
-            panX: 0,
-            panY: 0,
-            currentFrameWidth: 0,
-            currentFrameHeight: 0,
-            isPanning: false,
-            lastMouseX: 0,
-            lastMouseY: 0,
-            frameCount: 0,
-            lastFpsUpdate: Date.now(),
-            currentFps: 0,
-            isStreaming: false
-        };
+         let state = {
+             zoom: 1,
+             panX: 0,
+             panY: 0,
+             currentFrameWidth: 0,
+             currentFrameHeight: 0,
+             isPanning: false,
+             lastMouseX: 0,
+             lastMouseY: 0,
+             frameCount: 0,
+             lastFpsUpdate: Date.now(),
+             currentFps: 0,
+             isStreaming: false
+         };
+         
+         let zoomDebounceTimer = null;
 
         // DOM Elements
         const canvas = document.getElementById('videoCanvas');
@@ -500,78 +502,176 @@
         const touchZoomIn = document.getElementById('touchZoomIn');
         const touchZoomOut = document.getElementById('touchZoomOut');
 
-        // Initialize SocketIO connection
-        let socket = null;
+        // HTTP streaming variables
+        let streamAbortController = null;
+        let mjpegParser = null;
 
-        function initSocket() {
-            if (!io) {
-                console.error('Socket.IO not available');
-                updateStatus('error', 'Socket.IO not available');
-                return;
+        class MJPEGStreamParser {
+            constructor(onFrame) {
+                this.onFrame = onFrame;
+                this.buffer = new Uint8Array();
+                this.frameStart = -1;
+                this.frameEnd = -1;
             }
 
-            socket = io();
+            append(chunk) {
+                const newBuffer = new Uint8Array(this.buffer.length + chunk.length);
+                newBuffer.set(this.buffer);
+                newBuffer.set(chunk, this.buffer.length);
+                this.buffer = newBuffer;
+                this.parseFrames();
+            }
 
-            socket.on('connect', () => {
-                console.log('Connected to server');
-                updateStatus('connected', 'Connected to server');
-                startVideoStream();
-            });
+            parseFrames() {
+                let position = 0;
+                const FFD8 = [0xFF, 0xD8]; // JPEG start
+                const FFD9 = [0xFF, 0xD9]; // JPEG end
 
-            socket.on('disconnect', () => {
-                console.log('Disconnected from server');
-                updateStatus('disconnected', 'Disconnected from server');
-                state.isStreaming = false;
-            });
-
-            socket.on('video_frame', (data) => {
-                if (data && data.frame) {
-                    const img = new Image();
-                    img.onload = () => {
-                        state.currentFrameWidth = img.width;
-                        state.currentFrameHeight = img.height;
-                        
-                        // Set canvas size
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        
-                        // Draw the frame
-                        drawFrame(img);
-                        
-                        // Update FPS
-                        updateFps();
-                        
-                        updateStatus('streaming', 'Streaming active');
-                        loadingSpinner.classList.remove('active');
-                        state.isStreaming = true;
-                    };
-                    img.onerror = () => {
-                        console.error('Failed to load frame image');
-                    };
-                    img.src = 'data:image/jpeg;base64,' + data.frame;
+                while (position < this.buffer.length - 1) {
+                    // Find JPEG start
+                    if (this.frameStart === -1) {
+                        if (this.buffer[position] === FFD8[0] && this.buffer[position + 1] === FFD8[1]) {
+                            this.frameStart = position;
+                        }
+                        position++;
+                    } else {
+                        // Find JPEG end
+                        if (this.buffer[position] === FFD9[0] && this.buffer[position + 1] === FFD9[1]) {
+                            this.frameEnd = position + 2;
+                            const frameData = this.buffer.slice(this.frameStart, this.frameEnd);
+                            this.onFrame(frameData);
+                            
+                            // Remove processed frame from buffer
+                            this.buffer = this.buffer.slice(this.frameEnd);
+                            this.frameStart = -1;
+                            this.frameEnd = -1;
+                            position = 0;
+                        } else {
+                            position++;
+                        }
+                    }
                 }
-            });
+            }
+        }
 
-            socket.on('error', (error) => {
-                console.error('Socket error:', error);
-                updateStatus('error', 'Connection error');
-            });
+        function initHTTPStreaming() {
+            console.log('Initializing HTTP video streaming');
+            updateStatus('connected', 'Connected to server');
+            startVideoStream();
         }
 
         function startVideoStream() {
-            if (socket && socket.connected) {
-                socket.emit('start_video_stream', {}, (response) => {
-                    console.log('Video stream started:', response);
-                    loadingSpinner.classList.add('active');
-                });
+            if (state.isStreaming) {
+                console.log('Stream already started');
+                return;
             }
+
+            loadingSpinner.classList.add('active');
+            
+            // Make POST request to start video on server
+            fetch('/video/start', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Video stream started:', data);
+                    beginHTTPStream();
+                })
+                .catch(error => {
+                    console.error('Error starting video stream:', error);
+                    updateStatus('error', 'Failed to start video stream');
+                });
+        }
+
+        function beginHTTPStream() {
+            if (state.isStreaming) return;
+
+            streamAbortController = new AbortController();
+            mjpegParser = new MJPEGStreamParser((frameData) => {
+                const blob = new Blob([frameData], { type: 'image/jpeg' });
+                const url = URL.createObjectURL(blob);
+                const img = new Image();
+                
+                img.onload = () => {
+                    state.currentFrameWidth = img.width;
+                    state.currentFrameHeight = img.height;
+                    
+                    // Set canvas size
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Draw the frame
+                    drawFrame(img);
+                    
+                    // Update FPS
+                    updateFps();
+                    
+                    updateStatus('streaming', 'Streaming active');
+                    loadingSpinner.classList.remove('active');
+                    state.isStreaming = true;
+                    
+                    URL.revokeObjectURL(url);
+                };
+                
+                img.onerror = () => {
+                    console.error('Failed to load frame image');
+                    URL.revokeObjectURL(url);
+                };
+                
+                img.src = url;
+            });
+
+            fetch('/video_stream', { signal: streamAbortController.signal })
+                .then(response => {
+                    const reader = response.body.getReader();
+                    
+                    const readChunk = () => {
+                        return reader.read().then(({ done, value }) => {
+                            if (done) {
+                                console.log('Stream ended');
+                                state.isStreaming = false;
+                                return;
+                            }
+                            
+                            mjpegParser.append(value);
+                            return readChunk();
+                        });
+                    };
+                    
+                    return readChunk();
+                })
+                .catch(error => {
+                    if (error.name !== 'AbortError') {
+                        console.error('Error reading stream:', error);
+                        updateStatus('error', 'Stream connection lost');
+                    }
+                    state.isStreaming = false;
+                });
         }
 
         function stopVideoStream() {
-            if (socket && socket.connected) {
-                socket.emit('stop_video_stream', {}, (response) => {
-                    console.log('Video stream stopped:', response);
-                });
+            state.isStreaming = false;
+            
+            // Abort the stream fetch immediately
+            if (streamAbortController) {
+                try {
+                    streamAbortController.abort();
+                } catch (e) {
+                    console.log('Stream already aborted');
+                }
+            }
+            
+            // Make POST request to stop video on server
+            try {
+                fetch('/video/stop', { method: 'POST', timeout: 2000 })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Video stream stopped:', data);
+                        updateStatus('disconnected', 'Stream stopped');
+                    })
+                    .catch(error => {
+                        console.error('Error stopping video stream:', error);
+                    });
+            } catch (e) {
+                console.error('Error in stopVideoStream:', e);
             }
         }
 
@@ -601,6 +701,21 @@
             zoomSlider.value = state.zoom;
             zoomDisplay.textContent = Math.round(state.zoom * 100) + '%';
             document.getElementById('infoZoom').textContent = Math.round(state.zoom * 100) + '%';
+            
+            // Constrain pan when zoomed out to 100%
+            if (state.zoom === 1) {
+                state.panX = 0;
+                state.panY = 0;
+            } else {
+                // Constrain pan within valid bounds when zoomed in
+                const maxPanX = (container.clientWidth * (state.zoom - 1)) / 2;
+                const maxPanY = ((container.clientHeight - 50) * (state.zoom - 1)) / 2;
+                
+                state.panX = Math.max(-maxPanX, Math.min(maxPanX, state.panX));
+                state.panY = Math.max(-maxPanY, Math.min(maxPanY, state.panY));
+            }
+            
+            document.getElementById('infoPan').textContent = `(${Math.round(state.panX)}, ${Math.round(state.panY)})`;
         }
 
         function resetView() {
@@ -682,12 +797,14 @@
             updateZoom(state.zoom + delta);
         });
 
-        // Mouse drag pan
+        // Mouse drag pan (only when zoomed in)
         canvas.addEventListener('mousedown', (e) => {
-            state.isPanning = true;
-            state.lastMouseX = e.clientX;
-            state.lastMouseY = e.clientY;
-            container.classList.add('panning');
+            if (state.zoom > 1) {
+                state.isPanning = true;
+                state.lastMouseX = e.clientX;
+                state.lastMouseY = e.clientY;
+                container.classList.add('panning');
+            }
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -831,18 +948,8 @@
 
         // Initialize on load
         document.addEventListener('DOMContentLoaded', () => {
-            initSocket();
+            initHTTPStreaming();
         });
-
-        // Check if Socket.IO is loaded from parent, otherwise try to load it
-        if (!io) {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
-            script.onload = () => {
-                initSocket();
-            };
-            document.head.appendChild(script);
-        }
     </script>
 </body>
 

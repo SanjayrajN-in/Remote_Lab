@@ -1,0 +1,165 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    HOVER CONTROLS - VISUAL GUIDE                          ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+BEFORE: Channel Selection via External Dropdown
+───────────────────────────────────────────────
+
+┌────────────────────────────────────┐
+│   GPIO Channel Selection           │
+│   ┌──────────────────────────────┐ │
+│   │ Channel 1 ▼                  │ │
+│   └──────────────────────────────┘ │
+└────────────────────────────────────┘
+
+    ↓
+    
+┌──────────────────────────────────────────────┐
+│                                              │
+│        OSCILLOSCOPE DISPLAY (400px)          │
+│                                              │
+│    [Grid with waveforms - no controls]       │
+│                                              │
+│                                              │
+│                                              │
+│                                              │
+│                                              │
+│                                              │
+└──────────────────────────────────────────────┘
+
+
+AFTER: Channel Selection via Hover Controls
+─────────────────────────────────────────────
+
+┌────────────────────────────────────┐
+│   GPIO Channel Selection           │  ← Still available for compatibility
+│   ┌──────────────────────────────┐ │
+│   │ Channel 1 ▼                  │ │
+│   └──────────────────────────────┘ │
+└────────────────────────────────────┘
+
+    ↓
+    
+┌──────────────────────────────────────────────┐
+│                                              │
+│        OSCILLOSCOPE DISPLAY (400px)          │
+│                                              │
+│    [Grid with waveforms]                     │
+│                                              │
+│    [Hover anywhere in this area ↓↓↓]        │
+│                                              │
+│          [Shows on hover ⬇]                 │
+│                                              │
+│                                              │
+│     ┌────────────────────────────┐           │
+│     │ CH1  [═════════●═══]  100% │           │
+│     │ CH2  [═════════●═══]  100% │           │
+│     │                            │           │
+│     │   [CH1] [CH2] [Both]      │           │
+│     └────────────────────────────┘           │
+│                                              │
+└──────────────────────────────────────────────┘
+
+
+CONTROL DETAILS
+───────────────
+
+Channel 1 Slider (Green)
+┌─────────────────────────────────┐
+│ CH1           100%              │
+│ ●═════════════════════════════● │  ← Drag to adjust amplitude
+│                                 │
+└─────────────────────────────────┘
+
+Channel 2 Slider (Blue)
+┌─────────────────────────────────┐
+│ CH2           100%              │
+│ ●═════════════════════════════● │  ← Drag to adjust amplitude
+│                                 │
+└─────────────────────────────────┘
+
+Mode Selection Buttons
+┌─────────────────────────────────┐
+│ Mode                            │
+│  [CH1]  [CH2]  [Both]          │  ← Click to switch channel mode
+│                                 │
+│  Both button is highlighted     │
+│  by default (purple glow)       │
+└─────────────────────────────────┘
+
+
+INTERACTION FLOW
+────────────────
+
+User hovers over canvas
+        ↓
+Fade in (300ms) with opacity animation
+        ↓
+Controls visible with:
+  • CH1 slider (green color-coded)
+  • CH2 slider (blue color-coded)
+  • Mode selection buttons
+        ↓
+User adjusts slider
+        ↓
+Value updates in real-time (0-100%)
+        ↓
+Sends POST to /logic/config endpoint
+        ↓
+Amplitude applied to waveform display
+        ↓
+User hovers away from canvas
+        ↓
+Fade out (300ms) with opacity animation
+
+
+COLORS & STYLING
+────────────────
+
+CH1 Slider:
+  • Track: Dark green (bg-green-900/30)
+  • Thumb: Green gradient (#10B981 → #059669)
+  • Glow: Green shadow (rgba(16, 185, 129, 0.6))
+  • Label: text-green-400
+
+CH2 Slider:
+  • Track: Dark blue (bg-blue-900/30)
+  • Thumb: Blue gradient (#3B82F6 → #1D4ED8)
+  • Glow: Blue shadow (rgba(59, 130, 246, 0.6))
+  • Label: text-blue-400
+
+Mode Buttons:
+  • Default: Semi-transparent with hover effects
+  • Active: Brighter with bold text & stronger border
+  • Colors: Green (CH1), Blue (CH2), Purple (Both)
+
+Container:
+  • Background: Black/80 with backdrop blur
+  • Border: White/20 with rounded corners
+  • Position: Bottom-center, centered horizontally
+  • Z-index: 10 (above waveform SVG)
+
+
+FEATURES
+────────
+
+✓ Auto-hide on mouse leave
+✓ Real-time percentage display (0-100%)
+✓ Synchronized with external dropdown
+✓ Color-coded for visual clarity
+✓ Smooth transitions and animations
+✓ Glowing slider thumbs for feedback
+✓ Mode button highlighting
+✓ Glass-morphism design
+✓ Responsive to API calls
+
+
+ACCESSIBILITY
+──────────────
+
+• Keyboard: All buttons focusable (can be enhanced with keyboard shortcuts)
+• Visual: Clear color differentiation (green, blue, purple)
+• Feedback: Immediate visual response on interaction
+• Readability: High contrast text on dark backgrounds
+• Touch: Large enough targets for touch interaction (16px sliders)
+

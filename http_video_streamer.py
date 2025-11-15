@@ -9,7 +9,6 @@ import time
 import threading
 import logging
 import gc
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -24,96 +23,61 @@ class HTTPVideoStreamer:
         self.buffer_lock = threading.Lock()
         self.consecutive_errors = 0
         self.max_consecutive_errors = 5
-        self.target_fps = 15
+        self.target_fps = 25  # Single encoding shared across all clients
         self.frame_interval = 1.0 / self.target_fps
         self.last_frame_time = time.time()
+        self.encoded_frame_buffer = None  # Pre-encoded frame shared across clients
+        self.frame_ready_event = threading.Event()  # Signal when new frame is ready
+        self.capture_thread = None  # Reference to capture thread
+        self.active_clients = 0  # Track number of active stream readers
+        self.clients_lock = threading.Lock()  # Lock for client counter
         
-    def _test_camera(self, index):
-        """Test if a camera at given index works - returns (index, cap, success) tuple"""
-        try:
-            cap = cv2.VideoCapture(index)
-            
-            # Set a timeout for the open operation
-            cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 500)
-            
-            if not cap.isOpened():
-                logger.debug(f"Camera at index {index} cannot be opened")
-                return (index, None, False)
-            
-            # Try reading a frame with minimal delay
-            for attempt in range(2):
-                time.sleep(0.05)  # Small delay to let camera stabilize
-                ret, test_frame = cap.read()
-                if ret and test_frame is not None:
-                    logger.debug(f"✓ Camera at index {index} is working")
-                    return (index, cap, True)
-            
-            logger.debug(f"Camera at index {index} opened but cannot read frame")
-            cap.release()
-            return (index, None, False)
-                
-        except Exception as e:
-            logger.debug(f"Error testing camera at index {index}: {e}")
-            try:
-                cap.release()
-            except:
-                pass
-            return (index, None, False)
-    
     def initialize_camera(self, camera_indices=[0, 1, 2, 3, 4]):
         """
-        Initialize video capture from webcam using parallel detection
-        Try multiple camera indices simultaneously for faster initialization
+        Initialize video capture from webcam
+        Try multiple camera indices if needed
         """
-        logger.info(f"Attempting to initialize camera from indices (parallel): {camera_indices}")
+        logger.info(f"Attempting to initialize camera from indices: {camera_indices}")
         
-        test_cameras = {}
-        found_camera = False
-        
-        # Test all cameras in parallel
-        executor = ThreadPoolExecutor(max_workers=len(camera_indices))
-        futures = {executor.submit(self._test_camera, idx): idx for idx in camera_indices}
-        
-        try:
-            for future in as_completed(futures):
-                index, cap, success = future.result()
-                test_cameras[index] = (cap, success)
+        for index in camera_indices:
+            try:
+                cap = cv2.VideoCapture(index)
+                if not cap.isOpened():
+                    logger.warning(f"Camera at index {index} cannot be opened")
+                    continue
                 
-                # Use first working camera found
-                if success and not found_camera:
-                    found_camera = True
-                    # Configure camera settings
-                    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 854)
-                    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    cap.set(cv2.CAP_PROP_FPS, 25)
-                    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer to get fresh frames
-                    
-                    self.video_capture = cap
-                    logger.info(f"✓ Successfully initialized camera at index {index}")
-                    
-                    # Cancel remaining futures (non-blocking)
-                    for f in futures:
-                        f.cancel()
-                    
-                    # Clean up other test cameras that already completed
-                    for idx, (test_cap, was_success) in test_cameras.items():
-                        if idx != index and test_cap is not None:
-                            try:
-                                test_cap.release()
-                            except:
-                                pass
-                    
-                    executor.shutdown(wait=False)
-                    return True
-        finally:
-            # Clean up executor and remaining cameras
-            for idx, (test_cap, was_success) in test_cameras.items():
-                if test_cap is not None:
-                    try:
-                        test_cap.release()
-                    except:
-                        pass
-            executor.shutdown(wait=False)
+                # Add delay for camera to stabilize
+                time.sleep(0.2)
+                
+                # Test reading a frame - try multiple times
+                for attempt in range(3):
+                    ret, test_frame = cap.read()
+                    if ret and test_frame is not None:
+                        break
+                    time.sleep(0.1)
+                
+                if not ret or test_frame is None:
+                    logger.warning(f"Camera at index {index} opened but cannot read frame")
+                    cap.release()
+                    continue
+                
+                # Configure camera settings
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 854)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+                cap.set(cv2.CAP_PROP_FPS, 25)
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Minimize buffer to get fresh frames
+                
+                self.video_capture = cap
+                logger.info(f"✓ Successfully initialized camera at index {index}")
+                return True
+                
+            except Exception as e:
+                logger.warning(f"Error trying camera at index {index}: {e}")
+                try:
+                    cap.release()
+                except:
+                    pass
+                continue
         
         logger.error("Failed to initialize camera from all available indices")
         return False
@@ -135,9 +99,9 @@ class HTTPVideoStreamer:
                     logger.warning(f"Error releasing previous camera: {e}")
                 self.video_capture = None
             
-            # Force garbage collection (faster cleanup)
+            # Force garbage collection
             gc.collect()
-            time.sleep(0.1)  # Minimal wait for resources to be freed
+            time.sleep(0.3)  # Wait for resources to be freed
             
             logger.info("Initializing new camera...")
             if not self.initialize_camera():
@@ -147,6 +111,12 @@ class HTTPVideoStreamer:
             self.streaming_active = True
             self.consecutive_errors = 0
             self.last_frame_time = time.time()
+            self.encoded_frame_buffer = None
+            self.frame_ready_event.clear()
+            
+            # Start background frame capture thread (encodes once, shared across all clients)
+            self.capture_thread = self.start_frame_capture_thread()
+            
             logger.info("✓ Video streaming started - camera ready")
             return True
             
@@ -160,9 +130,17 @@ class HTTPVideoStreamer:
         logger.info("Stopping video stream...")
         self.streaming_active = False
         
-        # Wait a bit to allow generators to exit gracefully
-        time.sleep(0.05)
+        # Signal capture thread to wake up and exit
+        self.frame_ready_event.set()
         
+        # Wait for capture thread to finish
+        if self.capture_thread and self.capture_thread.is_alive():
+            logger.info("Waiting for capture thread to exit...")
+            self.capture_thread.join(timeout=1.0)
+            if self.capture_thread.is_alive():
+                logger.warning("Capture thread did not exit cleanly")
+        
+        # Release camera
         if self.video_capture:
             try:
                 self.video_capture.release()
@@ -175,6 +153,8 @@ class HTTPVideoStreamer:
         # Reset state
         self.consecutive_errors = 0
         self.last_frame_time = time.time()
+        self.encoded_frame_buffer = None
+        self.capture_thread = None
         
         # Force garbage collection to free camera resources
         gc.collect()
@@ -244,23 +224,95 @@ class HTTPVideoStreamer:
             
             return False, None
     
+    def start_frame_capture_thread(self):
+        """Start background thread that captures and encodes frames once"""
+        def capture_loop():
+            logger.info("Frame capture thread started")
+            while self.streaming_active:
+                try:
+                    # Get raw frame from camera
+                    if not self.video_capture or not self.video_capture.isOpened():
+                        time.sleep(0.1)
+                        continue
+                    
+                    current_time = time.time()
+                    elapsed = current_time - self.last_frame_time
+                    
+                    # Rate limiting
+                    if elapsed < self.frame_interval:
+                        time.sleep(0.01)
+                        continue
+                    
+                    ret, frame = self.video_capture.read()
+                    if not ret or frame is None:
+                        self.consecutive_errors += 1
+                        if self.consecutive_errors >= self.max_consecutive_errors:
+                            logger.error("Too many frame read errors, stopping")
+                            self.stop_streaming()
+                        time.sleep(0.05)
+                        continue
+                    
+                    # Encode frame ONCE - lower quality to reduce CPU
+                    ret, buffer = cv2.imencode(
+                        '.jpg',
+                        frame,
+                        [cv2.IMWRITE_JPEG_QUALITY, 60, cv2.IMWRITE_JPEG_OPTIMIZE, 0]  # Reduced quality, no optimization
+                    )
+                    
+                    if not ret:
+                        self.consecutive_errors += 1
+                        if self.consecutive_errors >= self.max_consecutive_errors:
+                            logger.error("Too many encoding errors, stopping")
+                            self.stop_streaming()
+                        time.sleep(0.05)
+                        continue
+                    
+                    # Store in shared buffer and signal all clients
+                    with self.buffer_lock:
+                        self.encoded_frame_buffer = buffer.tobytes()
+                    
+                    self.consecutive_errors = 0
+                    self.last_frame_time = current_time
+                    self.frame_ready_event.set()
+                    
+                except Exception as e:
+                    logger.error(f"Error in capture loop: {e}")
+                    time.sleep(0.1)
+            
+            logger.info("Frame capture thread stopped")
+        
+        thread = threading.Thread(target=capture_loop, daemon=True)
+        thread.start()
+        return thread
+
     def generate_mjpeg_stream(self):
         """
         Generator for MJPEG stream
-        Yields MJPEG frame boundaries and JPEG data
+        Yields MJPEG frame boundaries and pre-encoded JPEG data (shared across clients)
         """
         if not self.streaming_active:
             logger.info("Cannot generate MJPEG stream - streaming not active")
             return
         
-        logger.info("Starting MJPEG frame generation")
+        # Increment active client counter
+        with self.clients_lock:
+            self.active_clients += 1
+            logger.info(f"MJPEG client connected (total: {self.active_clients})")
+        
         frame_count = 0
         
         try:
             while self.streaming_active:
-                success, frame_bytes = self.get_frame()
+                # Wait for new frame (timeout to allow clean exits)
+                self.frame_ready_event.wait(timeout=0.5)
+                self.frame_ready_event.clear()
                 
-                if success and frame_bytes:
+                with self.buffer_lock:
+                    if self.encoded_frame_buffer is None:
+                        continue
+                    frame_bytes = self.encoded_frame_buffer
+                
+                if frame_bytes:
                     frame_count += 1
                     # Yield MJPEG frame with proper boundaries
                     yield (
@@ -271,13 +323,14 @@ class HTTPVideoStreamer:
                         b'X-Timestamp: ' + str(int(time.time() * 1000)).encode() + b'\r\n'
                         b'\r\n' + frame_bytes + b'\r\n'
                     )
-                else:
-                    time.sleep(0.01)  # Small sleep to prevent busy waiting
                     
         except Exception as e:
             logger.info(f"Error in MJPEG generator: {e}")
         finally:
-            logger.info(f"MJPEG frame generation stopped after {frame_count} frames")
+            # Decrement active client counter
+            with self.clients_lock:
+                self.active_clients -= 1
+                logger.info(f"MJPEG client disconnected (total: {self.active_clients} remaining)")
     
     def get_status(self):
         """Get streaming status"""
@@ -362,10 +415,18 @@ def initialize_http_video_streaming(app, socketio):
     
     @app.route('/video/stop', methods=['POST'])
     def stop_video():
-        """Stop video streaming endpoint"""
+        """Stop video streaming endpoint - only stops when no clients remain"""
         try:
-            streamer.stop_streaming()
-            return {'status': 'stopped', 'message': 'Video stream stopped'}, 200
+            with streamer.clients_lock:
+                active = streamer.active_clients
+            
+            # Only stop if this is the last client
+            if active <= 1:
+                streamer.stop_streaming()
+                return {'status': 'stopped', 'message': 'Video stream stopped'}, 200
+            else:
+                logger.info(f"Video stream has {active} other clients, not stopping")
+                return {'status': 'ok', 'message': f'Client disconnected, {active-1} clients remaining'}, 200
         except Exception as e:
             logger.error(f"Error in stop_video: {e}")
             return {'status': 'error', 'message': str(e)}, 500

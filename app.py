@@ -966,6 +966,54 @@ def init_audio_in_background():
 
 
 
+@socketio.on('start_streaming')
+def handle_start_streaming(data):
+    """Handle start/stop streaming request for video and audio"""
+    global audio_streaming_active, audio_stream, streaming_state_lock
+    
+    try:
+        video_requested = data.get('video', False)
+        audio_requested = data.get('audio', False)
+        
+        # Handle video streaming
+        if video_requested:
+            try:
+                streamer = get_http_video_streamer()
+                success = streamer.start_streaming()
+                if success:
+                    emit('streaming_status', {'type': 'video', 'status': 'started'})
+                else:
+                    emit('streaming_status', {'type': 'video', 'status': 'error', 'message': 'Could not initialize camera - device not connected'})
+            except Exception as e:
+                emit('streaming_status', {'type': 'video', 'status': 'error', 'message': str(e)})
+        
+        # Handle audio streaming
+        if audio_requested:
+            # Check if audio devices are available
+            devices_available, device_list = check_audio_devices()
+            if not devices_available:
+                # No audio device - emit error notification and fall back
+                emit('streaming_status', {'type': 'audio', 'status': 'error', 'message': 'audio initialization problem, please try later'})
+                return
+            
+            # Audio devices available - initialize audio
+            init_audio_in_background()
+        else:
+            # Stop audio if requested
+            with streaming_state_lock:
+                audio_streaming_active = False
+            if audio_stream:
+                try:
+                    audio_stream.stop_stream()
+                    audio_stream.close()
+                except:
+                    pass
+            emit('streaming_status', {'type': 'audio', 'status': 'stopped'})
+    
+    except Exception as e:
+        print(f"Error in start_streaming handler: {e}")
+        emit('streaming_status', {'type': 'audio', 'status': 'error', 'message': str(e)})
+
 @socketio.on('start_serial_monitor')
 def handle_start_serial_monitor(data):
     global serial_monitoring_active, serial_connection, hub_controls, serial_value_patterns, deleted_reader_controls
