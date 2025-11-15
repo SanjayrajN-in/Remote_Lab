@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fullscreen Video Stream</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        .fullscreen-container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background: #000;
+        }
+
+        /* Header with controls */
+        .header {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+            z-index: 100;
+        }
+
+        .header-title {
+            color: #fff;
+            font-size: 18px;
+            font-weight: 600;
+            background: linear-gradient(90deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+        }
+
+        .control-group label {
+            color: #9ca3af;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .control-group input[type="range"] {
+            width: 100px;
+            height: 4px;
+            border-radius: 2px;
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.3), rgba(59, 130, 246, 0.6));
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .control-group input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+        }
+
+        .control-group input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+        }
+
+        .zoom-display {
+            color: #3b82f6;
+            font-size: 13px;
+            font-weight: 600;
+            min-width: 50px;
+            text-align: right;
+        }
+
+        .button {
+            padding: 8px 12px;
+            background: rgba(59, 130, 246, 0.2);
+            border: 1px solid rgba(59, 130, 246, 0.5);
+            color: #fff;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .button:hover {
+            background: rgba(59, 130, 246, 0.3);
+            border-color: rgba(59, 130, 246, 0.7);
+            box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+        }
+
+        .button:active {
+            transform: scale(0.95);
+        }
+
+        .button svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Video canvas area */
+        .video-canvas {
+            flex: 1;
+            position: relative;
+            background: #000;
+            overflow: hidden;
+            cursor: grab;
+        }
+
+        .video-canvas.panning {
+            cursor: grabbing;
+        }
+
+        #videoCanvas {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            max-width: 100%;
+            max-height: 100%;
+            background: #000;
+        }
+
+        /* Status bar */
+        .status-bar {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 8px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.error {
+            background: #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.6;
+            }
+        }
+
+        .info-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            color: #e5e7eb;
+            font-size: 13px;
+            font-family: monospace;
+            max-width: 300px;
+            z-index: 50;
+            display: none;
+        }
+
+        .info-overlay.visible {
+            display: block;
+        }
+
+        .info-overlay-item {
+            margin: 4px 0;
+        }
+
+        .info-overlay-label {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        /* Keyboard hints */
+        .keyboard-hints {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            font-size: 11px;
+            color: #9ca3af;
+            z-index: 50;
+            max-width: 250px;
+        }
+
+        .keyboard-hints.hidden {
+            display: none;
+        }
+
+        .hint-item {
+            margin: 4px 0;
+            display: flex;
+            gap: 8px;
+        }
+
+        .hint-key {
+            color: #3b82f6;
+            font-weight: 600;
+            font-family: monospace;
+            min-width: 40px;
+        }
+
+        /* Loading spinner */
+        .loading-spinner {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            display: none;
+        }
+
+        .loading-spinner.active {
+            display: block;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(59, 130, 246, 0.2);
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* Touch controls for mobile */
+        .touch-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 12px;
+            z-index: 50;
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .touch-controls {
+                display: flex;
+            }
+
+            .keyboard-hints {
+                display: none;
+            }
+        }
+
+        .touch-btn {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(59, 130, 246, 0.3);
+            border: 2px solid rgba(59, 130, 246, 0.6);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 18px;
+        }
+
+        .touch-btn:active {
+            background: rgba(59, 130, 246, 0.5);
+            transform: scale(0.95);
+        }
+    </style>
+</head>
+
+<body>
+    <div class="fullscreen-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-title">Fullscreen Video Stream</div>
+            <div class="controls">
+                <div class="control-group">
+                    <label>Zoom:</label>
+                    <input type="range" id="zoomSlider" min="0.5" max="5" step="0.1" value="1">
+                    <span class="zoom-display" id="zoomDisplay">100%</span>
+                </div>
+                <button class="button" id="resetBtn" title="Reset view (R)">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.65,6.35C16.2,4.9 14.21,4 12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20C15.73,20 18.84,17.45 19.73,14H17.65C16.83,16.33 14.61,18 12,18A6,6 0 0,1 6,12A6,6 0 0,1 12,6C13.66,6 15.14,6.69 16.22,7.78L13,11H20V4L17.65,6.35Z" />
+                    </svg>
+                    Reset
+                </button>
+                <button class="button" id="infoBtn" title="Toggle info (I)">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4M12,6A1,1 0 0,1 13,7A1,1 0 0,1 12,8A1,1 0 0,1 11,7A1,1 0 0,1 12,6M12,9A1,1 0 0,1 13,10V15A1,1 0 0,1 12,16A1,1 0 0,1 11,15V10A1,1 0 0,1 12,9Z" />
+                    </svg>
+                    Info
+                </button>
+                <button class="button" id="closeBtn" title="Close (ESC)">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M19,6.41L17.59,5L12,10.59L6.41,5L5,6.41L10.59,12L5,17.59L6.41,19L12,13.41L17.59,19L19,17.59L13.41,12L19,6.41Z" />
+                    </svg>
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <!-- Video Canvas Area -->
+        <div class="video-canvas" id="videoCanvasContainer">
+            <canvas id="videoCanvas"></canvas>
+            <div class="loading-spinner" id="loadingSpinner">
+                <div class="spinner"></div>
+            </div>
+            <div class="info-overlay" id="infoOverlay">
+                <div class="info-overlay-item">
+                    <span class="info-overlay-label">Stream Status:</span>
+                    <span id="streamStatus">Connecting...</span>
+                </div>
+                <div class="info-overlay-item">
+                    <span class="info-overlay-label">Zoom Level:</span>
+                    <span id="infoZoom">100%</span>
+                </div>
+                <div class="info-overlay-item">
+                    <span class="info-overlay-label">Pan Offset:</span>
+                    <span id="infoPan">(0, 0)</span>
+                </div>
+                <div class="info-overlay-item">
+                    <span class="info-overlay-label">FPS:</span>
+                    <span id="infoFps">0</span>
+                </div>
+                <div class="info-overlay-item" style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(59, 130, 246, 0.2);">
+                    <span class="info-overlay-label">Keyboard:</span>
+                </div>
+                <div class="info-overlay-item" style="font-size: 11px;">
+                    ↑↓←→ or WASD: Pan
+                </div>
+                <div class="info-overlay-item" style="font-size: 11px;">
+                    +/- or Scroll: Zoom
+                </div>
+                <div class="info-overlay-item" style="font-size: 11px;">
+                    R: Reset | I: Info | H: Hints | Space: FitToScreen
+                </div>
+            </div>
+            <div class="keyboard-hints" id="keyboardHints">
+                <div class="hint-item">
+                    <span class="hint-key">↑↓←→</span> <span>Pan view</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">WASD</span> <span>Pan view</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">+ / -</span> <span>Zoom in/out</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">Scroll</span> <span>Zoom</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">Drag</span> <span>Pan (mouse)</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">R</span> <span>Reset view</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">I</span> <span>Toggle info</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">H</span> <span>Toggle hints</span>
+                </div>
+                <div class="hint-item">
+                    <span class="hint-key">Space</span> <span>Fit to screen</span>
+                </div>
+            </div>
+            <div class="touch-controls" id="touchControls">
+                <button class="touch-btn" id="touchZoomIn">+</button>
+                <button class="touch-btn" id="touchZoomOut">−</button>
+            </div>
+        </div>
+
+        <!-- Status Bar -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span class="status-indicator" id="statusIndicator"></span>
+                <span id="statusText">Initializing stream...</span>
+            </div>
+            <div style="flex: 1; text-align: center;">
+                <span id="connectionInfo">Remote Lab Fullscreen Video</span>
+            </div>
+            <div class="status-item">
+                <span id="resolutionInfo">Loading...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const io = typeof window !== 'undefined' && window.io ? window.io : null;
+
+        // Configuration
+        const config = {
+            maxZoom: 5,
+            minZoom: 0.5,
+            panSpeed: 20,
+            zoomSensitivity: 0.1,
+            fpsUpdateInterval: 1000
+        };
+
+        // State
+        let state = {
+            zoom: 1,
+            panX: 0,
+            panY: 0,
+            currentFrameWidth: 0,
+            currentFrameHeight: 0,
+            isPanning: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+            frameCount: 0,
+            lastFpsUpdate: Date.now(),
+            currentFps: 0,
+            isStreaming: false
+        };
+
+        // DOM Elements
+        const canvas = document.getElementById('videoCanvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('videoCanvasContainer');
+        const zoomSlider = document.getElementById('zoomSlider');
+        const zoomDisplay = document.getElementById('zoomDisplay');
+        const resetBtn = document.getElementById('resetBtn');
+        const infoBtn = document.getElementById('infoBtn');
+        const closeBtn = document.getElementById('closeBtn');
+        const infoOverlay = document.getElementById('infoOverlay');
+        const keyboardHints = document.getElementById('keyboardHints');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const statusIndicator = document.getElementById('statusIndicator');
+        const statusText = document.getElementById('statusText');
+        const touchZoomIn = document.getElementById('touchZoomIn');
+        const touchZoomOut = document.getElementById('touchZoomOut');
+
+        // Initialize SocketIO connection
+        let socket = null;
+
+        function initSocket() {
+            if (!io) {
+                console.error('Socket.IO not available');
+                updateStatus('error', 'Socket.IO not available');
+                return;
+            }
+
+            socket = io();
+
+            socket.on('connect', () => {
+                console.log('Connected to server');
+                updateStatus('connected', 'Connected to server');
+                startVideoStream();
+            });
+
+            socket.on('disconnect', () => {
+                console.log('Disconnected from server');
+                updateStatus('disconnected', 'Disconnected from server');
+                state.isStreaming = false;
+            });
+
+            socket.on('video_frame', (data) => {
+                if (data && data.frame) {
+                    const img = new Image();
+                    img.onload = () => {
+                        state.currentFrameWidth = img.width;
+                        state.currentFrameHeight = img.height;
+                        
+                        // Set canvas size
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        
+                        // Draw the frame
+                        drawFrame(img);
+                        
+                        // Update FPS
+                        updateFps();
+                        
+                        updateStatus('streaming', 'Streaming active');
+                        loadingSpinner.classList.remove('active');
+                        state.isStreaming = true;
+                    };
+                    img.onerror = () => {
+                        console.error('Failed to load frame image');
+                    };
+                    img.src = 'data:image/jpeg;base64,' + data.frame;
+                }
+            });
+
+            socket.on('error', (error) => {
+                console.error('Socket error:', error);
+                updateStatus('error', 'Connection error');
+            });
+        }
+
+        function startVideoStream() {
+            if (socket && socket.connected) {
+                socket.emit('start_video_stream', {}, (response) => {
+                    console.log('Video stream started:', response);
+                    loadingSpinner.classList.add('active');
+                });
+            }
+        }
+
+        function stopVideoStream() {
+            if (socket && socket.connected) {
+                socket.emit('stop_video_stream', {}, (response) => {
+                    console.log('Video stream stopped:', response);
+                });
+            }
+        }
+
+        function drawFrame(img) {
+            // Clear canvas
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Save context state
+            ctx.save();
+
+            // Apply transformations
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            ctx.scale(state.zoom, state.zoom);
+            ctx.translate(state.panX / state.zoom, state.panY / state.zoom);
+            ctx.translate(-canvas.width / 2, -canvas.height / 2);
+
+            // Draw image
+            ctx.drawImage(img, 0, 0);
+
+            // Restore context
+            ctx.restore();
+        }
+
+        function updateZoom(newZoom) {
+            state.zoom = Math.max(config.minZoom, Math.min(config.maxZoom, newZoom));
+            zoomSlider.value = state.zoom;
+            zoomDisplay.textContent = Math.round(state.zoom * 100) + '%';
+            document.getElementById('infoZoom').textContent = Math.round(state.zoom * 100) + '%';
+        }
+
+        function resetView() {
+            state.zoom = 1;
+            state.panX = 0;
+            state.panY = 0;
+            updateZoom(1);
+            document.getElementById('infoPan').textContent = '(0, 0)';
+        }
+
+        function fitToScreen() {
+            if (state.currentFrameWidth === 0 || state.currentFrameHeight === 0) return;
+            
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight - 50; // Subtract header
+            
+            const zoomX = containerWidth / state.currentFrameWidth;
+            const zoomY = containerHeight / state.currentFrameHeight;
+            
+            updateZoom(Math.min(zoomX, zoomY) * 0.95); // 95% to leave some margin
+            state.panX = 0;
+            state.panY = 0;
+        }
+
+        function updateFps() {
+            state.frameCount++;
+            const now = Date.now();
+            const elapsed = now - state.lastFpsUpdate;
+
+            if (elapsed >= config.fpsUpdateInterval) {
+                state.currentFps = Math.round((state.frameCount * 1000) / elapsed);
+                document.getElementById('infoFps').textContent = state.currentFps;
+                state.frameCount = 0;
+                state.lastFpsUpdate = now;
+            }
+        }
+
+        function updateStatus(status, message) {
+            statusText.textContent = message;
+            statusIndicator.classList.remove('error');
+            
+            if (status === 'error' || status === 'disconnected') {
+                statusIndicator.classList.add('error');
+            }
+        }
+
+        // Zoom slider change
+        zoomSlider.addEventListener('input', (e) => {
+            updateZoom(parseFloat(e.target.value));
+        });
+
+        // Reset button
+        resetBtn.addEventListener('click', resetView);
+
+        // Info button
+        infoBtn.addEventListener('click', () => {
+            infoOverlay.classList.toggle('visible');
+        });
+
+        // Close button
+        closeBtn.addEventListener('click', () => {
+            stopVideoStream();
+            window.close();
+        });
+
+        // Touch zoom buttons
+        touchZoomIn.addEventListener('click', () => {
+            updateZoom(state.zoom + 0.2);
+        });
+
+        touchZoomOut.addEventListener('click', () => {
+            updateZoom(state.zoom - 0.2);
+        });
+
+        // Mouse wheel zoom
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? -config.zoomSensitivity : config.zoomSensitivity;
+            updateZoom(state.zoom + delta);
+        });
+
+        // Mouse drag pan
+        canvas.addEventListener('mousedown', (e) => {
+            state.isPanning = true;
+            state.lastMouseX = e.clientX;
+            state.lastMouseY = e.clientY;
+            container.classList.add('panning');
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (state.isPanning) {
+                const deltaX = e.clientX - state.lastMouseX;
+                const deltaY = e.clientY - state.lastMouseY;
+                
+                state.panX += deltaX;
+                state.panY += deltaY;
+                
+                state.lastMouseX = e.clientX;
+                state.lastMouseY = e.clientY;
+                
+                document.getElementById('infoPan').textContent = `(${Math.round(state.panX)}, ${Math.round(state.panY)})`;
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            state.isPanning = false;
+            container.classList.remove('panning');
+        });
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            const panAmount = config.panSpeed;
+            
+            switch(e.key.toLowerCase()) {
+                case 'arrowup':
+                case 'w':
+                    e.preventDefault();
+                    state.panY += panAmount;
+                    break;
+                case 'arrowdown':
+                case 's':
+                    e.preventDefault();
+                    state.panY -= panAmount;
+                    break;
+                case 'arrowleft':
+                case 'a':
+                    e.preventDefault();
+                    state.panX += panAmount;
+                    break;
+                case 'arrowright':
+                case 'd':
+                    e.preventDefault();
+                    state.panX -= panAmount;
+                    break;
+                case '+':
+                case '=':
+                    e.preventDefault();
+                    updateZoom(state.zoom + config.zoomSensitivity);
+                    break;
+                case '-':
+                case '_':
+                    e.preventDefault();
+                    updateZoom(state.zoom - config.zoomSensitivity);
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    resetView();
+                    break;
+                case 'i':
+                    e.preventDefault();
+                    infoOverlay.classList.toggle('visible');
+                    break;
+                case 'h':
+                    e.preventDefault();
+                    keyboardHints.classList.toggle('hidden');
+                    break;
+                case ' ':
+                    e.preventDefault();
+                    fitToScreen();
+                    break;
+                case 'escape':
+                    e.preventDefault();
+                    stopVideoStream();
+                    window.close();
+                    break;
+            }
+            
+            document.getElementById('infoPan').textContent = `(${Math.round(state.panX)}, ${Math.round(state.panY)})`;
+        });
+
+        // Touch controls
+        let lastTouchDistance = 0;
+
+        canvas.addEventListener('touchstart', (e) => {
+            if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
+            } else if (e.touches.length === 1) {
+                state.lastMouseX = e.touches[0].clientX;
+                state.lastMouseY = e.touches[0].clientY;
+                state.isPanning = true;
+            }
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2) {
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (lastTouchDistance > 0) {
+                    const scale = distance / lastTouchDistance;
+                    updateZoom(state.zoom * scale);
+                }
+                
+                lastTouchDistance = distance;
+            } else if (e.touches.length === 1 && state.isPanning) {
+                const deltaX = e.touches[0].clientX - state.lastMouseX;
+                const deltaY = e.touches[0].clientY - state.lastMouseY;
+                
+                state.panX += deltaX;
+                state.panY += deltaY;
+                
+                state.lastMouseX = e.touches[0].clientX;
+                state.lastMouseY = e.touches[0].clientY;
+            }
+        });
+
+        canvas.addEventListener('touchend', () => {
+            state.isPanning = false;
+            lastTouchDistance = 0;
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            // Redraw if needed
+            if (state.currentFrameWidth > 0) {
+                canvas.width = state.currentFrameWidth;
+                canvas.height = state.currentFrameHeight;
+            }
+        });
+
+        // Close video stream on page unload
+        window.addEventListener('beforeunload', () => {
+            stopVideoStream();
+        });
+
+        // Initialize on load
+        document.addEventListener('DOMContentLoaded', () => {
+            initSocket();
+        });
+
+        // Check if Socket.IO is loaded from parent, otherwise try to load it
+        if (!io) {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.socket.io/4.5.4/socket.io.min.js';
+            script.onload = () => {
+                initSocket();
+            };
+            document.head.appendChild(script);
+        }
+    </script>
+</body>
+
+</html>

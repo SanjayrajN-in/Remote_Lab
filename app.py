@@ -25,6 +25,9 @@ from logic_analyzer import init_logic_analyzer_manager, get_logic_analyzer_manag
 # Import firmware validator
 from firmware_validator import FirmwareValidator
 
+# Import HTTP video streamer
+from http_video_streamer import initialize_http_video_streaming, get_http_video_streamer
+
 app = Flask(__name__, template_folder='page')
 app.config['UPLOAD_FOLDER'] = '.'
 app.config['ALLOWED_EXTENSIONS'] = {'hex', 'bin'}
@@ -39,16 +42,14 @@ logic_analyzer_manager = None
 # Initialize firmware validator (will be reloaded for each validation)
 firmware_validator = None
 
-# Global variables for video and audio streaming
-video_capture = None
+# Global variables for audio and serial streaming
+# Note: video_capture and video_streaming_active moved to HTTPVideoStreamer class
 audio_stream = None
 serial_connection = None
-video_streaming_active = False
 audio_streaming_active = False
 serial_monitoring_active = False
 
-# Non-blocking queues for video/audio to prevent emit() blocking
-video_frame_queue = Queue(maxsize=2)  # Keep only 2 frames max
+# Non-blocking queue for audio to prevent emit() blocking
 audio_data_queue = Queue(maxsize=2)  # Keep only 2 buffers max to minimize latency and prevent accumulation
 
 # Device configurations
@@ -446,35 +447,8 @@ def send_control_command(control_id, value):
         print(f"Error sending control command: {e}")
         return False
 
-def initialize_video_capture():
-    """Initialize video capture from webcam - try multiple camera indices"""
-    global video_capture
-
-    # Try different camera indices (0, 1, 2, etc.)
-    camera_indices = [0, 1, 2, 3, 4]
-
-    for index in camera_indices:
-        try:
-            video_capture = cv2.VideoCapture(index)
-            if video_capture.isOpened():
-                # Test reading a frame to ensure camera works
-                ret, test_frame = video_capture.read()
-                if ret and test_frame is not None:
-                    # Set resolution to 480p (854x480) and 25 FPS
-                    video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 854)
-                    video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-                    video_capture.set(cv2.CAP_PROP_FPS, 25)
-                    return True
-                else:
-                    print(f"Camera at index {index} opened but could not read frame")
-                    video_capture.release()
-            else:
-                print(f"Could not open camera at index {index}")
-        except Exception as e:
-            print(f"Error trying camera at index {index}: {e}")
-            continue
-
-    return False
+# Video capture initialization moved to HTTPVideoStreamer class in http_video_streamer.py
+# Use get_http_video_streamer().start_streaming() instead
 
 def check_audio_devices():
     """Check if physical audio input devices are available and actually working"""
@@ -616,61 +590,7 @@ def initialize_serial_connection(port, baudrate=9600):
         print(f"Error initializing serial connection: {e}")
         return False
 
-def video_stream_thread():
-    """Thread for video streaming - non-blocking with queue"""
-    global video_capture, video_streaming_active, video_frame_queue
-
-    if not video_capture or not video_capture.isOpened():
-        print("Video capture not available - exiting video thread")
-        return
-
-    consecutive_errors = 0
-    max_consecutive_errors = 5
-    frame_interval = 1.0 / 15.0  # Target 15 FPS for better performance
-    last_frame_time = time.time()
-
-
-    while video_streaming_active and video_capture and video_capture.isOpened():
-        try:
-            current_time = time.time()
-            if current_time - last_frame_time < frame_interval:
-                time.sleep(0.01)  # Small sleep to prevent busy waiting
-                continue
-
-            ret, frame = video_capture.read()
-            if ret and frame is not None:
-                # Encode frame as JPEG with optimized quality
-                ret, buffer = cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, 75, cv2.IMWRITE_JPEG_OPTIMIZE, 1])
-                if ret:
-                    # Convert to base64 for transmission
-                    frame_base64 = base64.b64encode(buffer).decode('utf-8')
-                    try:
-                        # Use non-blocking queue to avoid blocking on socketio.emit
-                        video_frame_queue.put_nowait({'frame': frame_base64})
-                        consecutive_errors = 0
-                        last_frame_time = current_time
-                    except Exception as queue_error:
-                        # Queue is full, drop old frame (acceptable for video streaming)
-                        try:
-                            video_frame_queue.get_nowait()
-                            video_frame_queue.put_nowait({'frame': frame_base64})
-                        except:
-                            pass
-                else:
-                    consecutive_errors += 1
-            else:
-                consecutive_errors += 1
-
-            if consecutive_errors >= max_consecutive_errors:
-                video_streaming_active = False
-                break
-
-        except Exception as e:
-            consecutive_errors += 1
-            if consecutive_errors >= max_consecutive_errors:
-                video_streaming_active = False
-                break
-            time.sleep(0.1)
+# MJPEG frame generation now handled by http_video_streamer module
 
 
 def audio_stream_thread():
@@ -1014,35 +934,7 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
     finally:
         upload_in_progress = False
 
-# SocketIO event handlers
-def init_video_in_background():
-     """Initialize video in background thread to avoid blocking socket event loop"""
-     global video_streaming_active, video_capture, video_init_in_progress, streaming_state_lock
-     try:
-         with streaming_state_lock:
-             if video_init_in_progress:
-                 return
-             video_init_in_progress = True
-         
-         if initialize_video_capture():
-             print("Video capture initialized successfully, starting thread")
-             with streaming_state_lock:
-                 video_streaming_active = True
-             video_thread = threading.Thread(target=video_stream_thread)
-             video_thread.daemon = True
-             video_thread.start()
-             # Start dispatcher thread if not already running
-             start_media_dispatcher()
-             socketio.emit('streaming_status', {'type': 'video', 'status': 'started'})
-         else:
-             print("Failed to initialize video capture")
-             socketio.emit('streaming_status', {'type': 'video', 'status': 'error', 'message': 'Could not initialize camera'})
-     except Exception as e:
-         print(f"Error in video initialization: {e}")
-         socketio.emit('streaming_status', {'type': 'video', 'status': 'error', 'message': str(e)})
-     finally:
-         with streaming_state_lock:
-             video_init_in_progress = False
+# Video streaming functions now in http_video_streamer module
 
 def init_audio_in_background():
     """Initialize audio in background thread to avoid blocking socket event loop"""
@@ -1072,77 +964,7 @@ def init_audio_in_background():
         with streaming_state_lock:
             audio_init_in_progress = False
 
-@socketio.on('start_streaming')
-def handle_start_streaming(data):
-    global video_streaming_active, audio_streaming_active, video_capture, audio_stream
-    try:
-        # Handle video streaming
-        video_requested = data.get('video', False)
-        if video_requested and not video_capture:
-            # Start video in background thread to avoid blocking socket event loop
-            init_thread = threading.Thread(target=init_video_in_background)
-            init_thread.daemon = True
-            init_thread.start()
-        elif not video_requested and video_capture:
-            # Stop video
-            video_streaming_active = False
-            if video_capture:
-                try:
-                    video_capture.release()
-                except Exception as e:
-                    pass
-                video_capture = None
-            emit('streaming_status', {'type': 'video', 'status': 'stopped'})
 
-        # Handle audio streaming
-        audio_requested = data.get('audio', False)
-        if audio_requested and not audio_stream:
-            # Start audio in background thread to avoid blocking socket event loop
-            init_thread = threading.Thread(target=init_audio_in_background)
-            init_thread.daemon = True
-            init_thread.start()
-        elif not audio_requested and audio_stream:
-            # Stop audio
-            audio_streaming_active = False
-            if PYAUDIO_AVAILABLE and audio_stream:
-                try:
-                    audio_stream.stop_stream()
-                    audio_stream.close()
-                except Exception as e:
-                    pass
-                audio_stream = None
-            emit('streaming_status', {'type': 'audio', 'status': 'stopped'})
-
-    except Exception as e:
-        emit('streaming_status', {'type': 'error', 'message': str(e)})
-
-@socketio.on('stop_streaming')
-def handle_stop_streaming():
-    global video_streaming_active, audio_streaming_active, video_capture, audio_stream
-    video_streaming_active = False
-    audio_streaming_active = False
-
-    # Clean up video
-    if video_capture:
-        try:
-            video_capture.release()
-        except Exception as e:
-            pass
-        video_capture = None
-
-    # Clean up audio
-    if PYAUDIO_AVAILABLE and audio_stream:
-        try:
-            audio_stream.stop_stream()
-            audio_stream.close()
-        except Exception as e:
-            pass
-        audio_stream = None
-
-    # NOTE: Serial monitor is NOT stopped by "Stop All" - only by serial monitor controls
-    # This prevents accidentally disconnecting serial connections when stopping video/audio
-
-    emit('streaming_status', {'type': 'all', 'status': 'stopped'})
 
 @socketio.on('start_serial_monitor')
 def handle_start_serial_monitor(data):
@@ -1347,6 +1169,11 @@ def index():
      devices = find_devices()
      firmware = find_firmware()
      return render_template('remotelab.html')
+
+@app.route('/page/<path:page>')
+def serve_page(page):
+    """Serve HTML pages from the page folder"""
+    return render_template(page)
 
 @app.route('/static/<path:filename>')
 def static_files(filename):
@@ -1553,20 +1380,22 @@ def get_network_info():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# Video streaming routes are now handled by http_video_streamer module
+# They will be registered in the initialization section below
+
 def cleanup_all_resources():
     """Clean up all active resources (video, audio, serial, logic analyzer)"""
-    global video_streaming_active, audio_streaming_active, serial_monitoring_active
-    global video_capture, audio_stream, serial_connection
+    global audio_streaming_active, serial_monitoring_active
+    global audio_stream, serial_connection
     
-    # Stop video streaming
-    if video_streaming_active or video_capture:
-        video_streaming_active = False
-        if video_capture:
-            try:
-                video_capture.release()
-            except Exception as e:
-                pass
-            video_capture = None
+    # Stop video streaming using new HTTP video streamer
+    try:
+        streamer = get_http_video_streamer()
+        if streamer.streaming_active:
+            streamer.stop_streaming()
+            print("✓ Video streaming stopped")
+    except Exception as e:
+        print(f"Error stopping video stream: {e}")
     
     # Stop audio streaming
     if audio_streaming_active or audio_stream:
@@ -1609,6 +1438,10 @@ def initialize_logic_analyzer():
 
 # Initialize logic analyzer after app creation
 initialize_logic_analyzer()
+
+# Initialize HTTP video streaming
+http_video_streamer = initialize_http_video_streaming(app, socketio)
+print("✓ HTTP video streaming initialized")
 
 # Logic Analyzer Routes
 @app.route('/logic/start', methods=['POST'])
@@ -1920,11 +1753,13 @@ def detect_hub_controls():
 
 
 
+
+
 dispatcher_thread_running = False
 dispatcher_lock = threading.Lock()
 
 def start_media_dispatcher():
-    """Start the media dispatcher thread if not already running"""
+    """Start the media dispatcher thread for audio (video now uses MJPEG HTTP stream)"""
     global dispatcher_thread_running, dispatcher_lock
     
     with dispatcher_lock:
@@ -1935,22 +1770,14 @@ def start_media_dispatcher():
             dispatcher.start()
 
 def media_dispatcher_thread():
-    """Thread to dispatch queued video/audio data without blocking capture threads"""
-    global video_frame_queue, audio_data_queue, video_streaming_active, audio_streaming_active, dispatcher_thread_running
+    """Thread to dispatch queued audio data without blocking capture threads"""
+    global audio_data_queue, audio_streaming_active, dispatcher_thread_running
     
-    print("Media dispatcher thread started")
+    print("Media dispatcher thread started (audio only)")
     
     try:
-        while video_streaming_active or audio_streaming_active:
+        while audio_streaming_active:
             try:
-                # Emit queued video frames
-                while not video_frame_queue.empty() and video_streaming_active:
-                    try:
-                        frame_data = video_frame_queue.get_nowait()
-                        socketio.emit('video_frame', frame_data)
-                    except:
-                        break
-                
                 # Emit queued audio data - drain all queued frames to prevent accumulation
                 frames_emitted = 0
                 while not audio_data_queue.empty() and audio_streaming_active:
@@ -1960,10 +1787,6 @@ def media_dispatcher_thread():
                         frames_emitted += 1
                     except:
                         break
-                
-                # Log if queue is backing up (indicates frontend can't keep pace)
-                if audio_data_queue.qsize() > 5:
-                    pass
                 
                 # Small sleep to prevent busy waiting
                 time.sleep(0.001)

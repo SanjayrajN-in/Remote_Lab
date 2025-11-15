@@ -422,9 +422,19 @@
         <div class="w-2/3 p-6 space-y-6 overflow-y-auto">
             <!-- Video Stream -->
             <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
-                <h2 class="text-xl font-semibold mb-4 text-blue-300">
-                    Live Video Stream
-                </h2>
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold text-blue-300">
+                        Live Video Stream
+                    </h2>
+                    <button id="fullscreenBtn"
+                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg px-3 py-1 text-sm transition-all duration-200 flex items-center gap-2"
+                        title="Open fullscreen with zoom and pan">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+                        </svg>
+                        Fullscreen
+                    </button>
+                </div>
                 <div class="relative bg-black rounded-lg overflow-hidden group cursor-pointer"
                     style="padding-bottom: 56.25%; position: relative;">
                     <div id="videoPlaceholder"
@@ -676,10 +686,7 @@
                     updateFlashProgress(data.progress, data.status, data.in_progress);
                 });
 
-                // Handle video frame updates
-                socket.on('video_frame', function (data) {
-                    updateVideoFrame(data.frame);
-                });
+
 
                 // Handle audio data
                 socket.on('audio_data', function (data) {
@@ -852,25 +859,15 @@
             }
         }
 
-        // Video frame update
-        function updateVideoFrame(frameData) {
-            const videoElement = document.getElementById('videoElement');
-            const videoPlaceholder = document.getElementById('videoPlaceholder');
 
-            if (videoElement && frameData) {
-                videoElement.src = 'data:image/jpeg;base64,' + frameData;
-                videoElement.style.display = 'block';
-                if (videoPlaceholder) {
-                    videoPlaceholder.style.display = 'none';
-                }
-            }
-        }
 
         // Show video element and hide placeholder
         function showVideoElement() {
             const videoElement = document.getElementById('videoElement');
             const videoPlaceholder = document.getElementById('videoPlaceholder');
             if (videoElement) {
+                // Add timestamp to prevent caching and force new connection
+                videoElement.src = '/video_stream?t=' + Date.now();
                 videoElement.style.display = 'block';
             }
             if (videoPlaceholder) {
@@ -883,6 +880,8 @@
             const videoElement = document.getElementById('videoElement');
             const videoPlaceholder = document.getElementById('videoPlaceholder');
             if (videoElement) {
+                // Close the HTTP connection by clearing the src
+                videoElement.src = '';
                 videoElement.style.display = 'none';
             }
             if (videoPlaceholder) {
@@ -1686,38 +1685,44 @@
             const videoStopBtn = document.getElementById('videoStopBtn');
             const audioMuteBtn = document.getElementById('audioMuteBtn');
             const audioStopBtn = document.getElementById('audioStopBtn');
+            const fullscreenBtn = document.getElementById('fullscreenBtn');
 
             // Video play button
-            if (videoPlayBtn) {
-                videoPlayBtn.addEventListener('click', function () {
-                    if (socket && socket.connected) {
-                        // Get current audio state from UI
-                        const audioStopBtn = document.getElementById('audioStopBtn');
-                        const isAudioRunning = audioStopBtn && audioStopBtn.style.opacity === '1';
-                        socket.emit('start_streaming', { video: true, audio: isAudioRunning });
-                        // Show stop button, hide play button
-                        toggleVideoButtons(true);
-                    } else {
-                        alert('Not connected to server');
-                    }
-                });
-            }
+             if (videoPlayBtn) {
+                 videoPlayBtn.addEventListener('click', function () {
+                     fetch('/video/start', { method: 'POST' })
+                         .then(response => response.json())
+                         .then(data => {
+                             if (data.status === 'started') {
+                                // Small delay to ensure backend is ready
+                                setTimeout(() => {
+                                     showVideoElement();
+                                     toggleVideoButtons(true);
+                                }, 100);
+                             } else {
+                                 alert('Failed to start video: ' + (data.message || 'Unknown error'));
+                             }
+                         })
+                         .catch(error => alert('Error starting video: ' + error));
+                 });
+             }
 
-            // Video stop button
-            if (videoStopBtn) {
-                videoStopBtn.addEventListener('click', function () {
-                    if (socket && socket.connected) {
-                        // Get current audio state from UI
-                        const audioStopBtn = document.getElementById('audioStopBtn');
-                        const isAudioRunning = audioStopBtn && audioStopBtn.style.opacity === '1';
-                        socket.emit('start_streaming', { video: false, audio: isAudioRunning });
-                        // Show play button, hide stop button
-                        toggleVideoButtons(false);
-                    } else {
-                        alert('Not connected to server');
-                    }
-                });
-            }
+             // Video stop button
+             if (videoStopBtn) {
+                 videoStopBtn.addEventListener('click', function () {
+                    hideVideoElement();  // Close connection immediately
+                     fetch('/video/stop', { method: 'POST' })
+                         .then(response => response.json())
+                         .then(data => {
+                             if (data.status === 'stopped') {
+                                 toggleVideoButtons(false);
+                             } else {
+                                 alert('Failed to stop video: ' + (data.message || 'Unknown error'));
+                             }
+                         })
+                         .catch(error => alert('Error stopping video: ' + error));
+                 });
+             }
 
             // Audio start button
             if (audioMuteBtn) {
@@ -1748,6 +1753,14 @@
                     } else {
                         alert('Not connected to server');
                     }
+                });
+            }
+
+            // Fullscreen button
+            if (fullscreenBtn) {
+                fullscreenBtn.addEventListener('click', function () {
+                    const fullscreenUrl = window.location.origin + '/page/fullscreen_video.html';
+                    window.open(fullscreenUrl, 'fullscreen_video', 'width=1280,height=720,resizable=yes');
                 });
             }
         }
