@@ -26,7 +26,7 @@ from logic_analyzer import init_logic_analyzer_manager, get_logic_analyzer_manag
 # Import firmware validator
 from firmware_validator import FirmwareValidator
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='page')
 app.config['UPLOAD_FOLDER'] = '.'
 app.config['ALLOWED_EXTENSIONS'] = {'hex', 'bin'}
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
