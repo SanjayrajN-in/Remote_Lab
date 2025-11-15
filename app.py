@@ -15,7 +15,6 @@ try:
     PYAUDIO_AVAILABLE = True
 except ImportError:
     PYAUDIO_AVAILABLE = False
-    print("PyAudio not available - audio features will be disabled")
 import numpy as np
 import base64
 import io
@@ -456,13 +455,11 @@ def initialize_video_capture():
 
     for index in camera_indices:
         try:
-            print(f"Trying to open camera at index {index}")
             video_capture = cv2.VideoCapture(index)
             if video_capture.isOpened():
                 # Test reading a frame to ensure camera works
                 ret, test_frame = video_capture.read()
                 if ret and test_frame is not None:
-                    print(f"Successfully opened camera at index {index}")
                     # Set resolution to 480p (854x480) and 25 FPS
                     video_capture.set(cv2.CAP_PROP_FRAME_WIDTH, 854)
                     video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -477,13 +474,11 @@ def initialize_video_capture():
             print(f"Error trying camera at index {index}: {e}")
             continue
 
-    print("No working camera found")
     return False
 
 def check_audio_devices():
     """Check if physical audio input devices are available and actually working"""
     if not PYAUDIO_AVAILABLE:
-        print("PyAudio not available - audio features disabled")
         return False, []
 
     try:
@@ -497,7 +492,6 @@ def check_audio_devices():
 
                 # Skip virtual devices that aren't real microphones
                 if any(skip_name in device_name for skip_name in ['pipewire', 'pulse', 'null', 'default', 'dummy']):
-                    print(f"Skipping virtual device: {device_info.get('name', 'Unknown')} (Index: {i})")
                     continue
 
                 if device_info.get('maxInputChannels') > 0:
@@ -523,24 +517,21 @@ def check_audio_devices():
                             # Check if there's any non-zero audio data (not just silence)
                             if np.any(audio_array != 0):
                                 working_devices.append(device_info)
-                                print(f"Found working physical audio device: {device_info.get('name', 'Unknown')} (Index: {i})")
                             else:
-                                print(f"Device {device_info.get('name', 'Unknown')} (Index: {i}) returned only silence")
+                                pass
                         else:
-                            print(f"Device {device_info.get('name', 'Unknown')} (Index: {i}) returned no data")
+                            pass
 
                     except Exception as e:
-                        print(f"Device {device_info.get('name', 'Unknown')} (Index: {i}) not accessible: {e}")
                         continue
 
             except Exception as e:
-                print(f"Error checking device {i}: {e}")
                 continue
 
         audio.terminate()
 
         if len(working_devices) == 0:
-            print("No physical audio input devices found - audio will not be available")
+            pass
 
         return len(working_devices) > 0, working_devices
     except Exception as e:
@@ -552,7 +543,6 @@ def initialize_audio_stream():
     global audio_stream
 
     if not PYAUDIO_AVAILABLE:
-        print("PyAudio not available - cannot initialize audio")
         return False
 
     # First check if audio devices are available
@@ -639,7 +629,6 @@ def video_stream_thread():
     frame_interval = 1.0 / 15.0  # Target 15 FPS for better performance
     last_frame_time = time.time()
 
-    print("Video streaming thread started")
 
     while video_streaming_active and video_capture and video_capture.isOpened():
         try:
@@ -669,32 +658,25 @@ def video_stream_thread():
                             pass
                 else:
                     consecutive_errors += 1
-                    print(f"Failed to encode video frame (#{consecutive_errors})")
             else:
                 consecutive_errors += 1
-                print(f"Failed to read video frame (#{consecutive_errors})")
 
             if consecutive_errors >= max_consecutive_errors:
-                print("Too many consecutive video errors, stopping video thread")
                 video_streaming_active = False
                 break
 
         except Exception as e:
             consecutive_errors += 1
-            print(f"Error in video stream (#{consecutive_errors}): {e}")
             if consecutive_errors >= max_consecutive_errors:
-                print("Too many consecutive video errors, stopping video thread")
                 video_streaming_active = False
                 break
             time.sleep(0.1)
 
-    print("Video streaming thread stopped")
 
 def audio_stream_thread():
     """Thread for audio streaming - non-blocking with queue"""
     global audio_stream, audio_streaming_active, audio_data_queue
     if not PYAUDIO_AVAILABLE or not audio_stream:
-        print("Audio not available - exiting audio thread")
         return
 
     consecutive_errors = 0
@@ -703,7 +685,6 @@ def audio_stream_thread():
     sample_rate = 44100  # Must match frontend 48000Hz for resampling, but capture at 44100
     frame_duration = buffer_size / sample_rate  # Duration of one buffer in seconds (~93ms)
 
-    print(f"Audio streaming thread started - buffer size: {buffer_size}, sample rate: {sample_rate}Hz, frame duration: {frame_duration*1000:.1f}ms")
 
     while audio_streaming_active and audio_stream:
         try:
@@ -728,21 +709,17 @@ def audio_stream_thread():
 
         except Exception as e:
             consecutive_errors += 1
-            print(f"Error in audio stream (#{consecutive_errors}): {e}")
             if consecutive_errors >= max_consecutive_errors:
-                print("Too many consecutive audio errors, stopping audio thread")
                 audio_streaming_active = False  # Signal to stop
                 break
             time.sleep(0.01)  # Small pause on error
 
-    print("Audio streaming thread stopped")
 
 def serial_monitor_thread():
     """Thread for serial monitoring - optimized for performance with proper line buffering"""
     global serial_connection, serial_monitoring_active
 
     if not serial_connection or not serial_connection.is_open:
-        print("Serial connection not available - exiting serial thread")
         return
 
     consecutive_errors = 0
@@ -803,9 +780,7 @@ def serial_monitor_thread():
             error_msg = str(e)
             if "Second simultaneous read" not in error_msg and "multiple_readers" not in error_msg:
                 consecutive_errors += 1
-                print(f"Error in serial monitor (#{consecutive_errors}): {e}")
                 if consecutive_errors >= max_consecutive_errors:
-                    print("Too many consecutive serial errors, stopping serial thread")
                     serial_monitoring_active = False
                     break
             time.sleep(0.1)  # Longer pause on error
@@ -918,12 +893,17 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
 
     upload_in_progress = True
     terminal_output = []
+    
+    # Normalize device type
+    device_type = device_type.lower() if device_type else 'arduino'
+    
     terminal_output.append(f"Starting upload of {file_path} to {device_type.upper()} ({chip_type}) at {port}")
 
     # Emit initial progress
     socketio.emit('flash_progress', {'progress': 0, 'status': 'Starting upload...', 'in_progress': True})
 
     try:
+        cmd = None
         if device_type == 'arduino':
             cmd = [
                 'avrdude',
@@ -948,6 +928,19 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
                 "--after", "hard_reset",
                 "write_flash", "-z", "0x10000", file_path
             ]
+        else:
+            # Default to arduino if device type is unknown
+            terminal_output.append(f"Unknown device type '{device_type}', defaulting to arduino")
+            cmd = [
+                'avrdude',
+                '-p', chip_type,
+                '-c', 'arduino',
+                '-P', port,
+                '-U', f'flash:w:{file_path}:i'
+            ]
+
+        if cmd is None:
+            raise ValueError(f"Could not determine flash command for device type: {device_type}")
 
         terminal_output.append(f"Executing: {' '.join(cmd)}")
         socketio.emit('flash_progress', {'progress': 10, 'status': 'Initializing...', 'in_progress': True})
@@ -1026,10 +1019,8 @@ def init_video_in_background():
      """Initialize video in background thread to avoid blocking socket event loop"""
      global video_streaming_active, video_capture, video_init_in_progress, streaming_state_lock
      try:
-         print("Initializing video capture in background...")
          with streaming_state_lock:
              if video_init_in_progress:
-                 print("Video initialization already in progress, skipping")
                  return
              video_init_in_progress = True
          
@@ -1057,10 +1048,8 @@ def init_audio_in_background():
     """Initialize audio in background thread to avoid blocking socket event loop"""
     global audio_streaming_active, audio_stream, audio_init_in_progress, streaming_state_lock
     try:
-        print("Initializing audio capture in background...")
         with streaming_state_lock:
             if audio_init_in_progress:
-                print("Audio initialization already in progress, skipping")
                 return
             audio_init_in_progress = True
         
@@ -1086,7 +1075,6 @@ def init_audio_in_background():
 @socketio.on('start_streaming')
 def handle_start_streaming(data):
     global video_streaming_active, audio_streaming_active, video_capture, audio_stream
-    print(f"Received start_streaming request: {data}")
     try:
         # Handle video streaming
         video_requested = data.get('video', False)
@@ -1097,13 +1085,12 @@ def handle_start_streaming(data):
             init_thread.start()
         elif not video_requested and video_capture:
             # Stop video
-            print("Stopping video capture...")
             video_streaming_active = False
             if video_capture:
                 try:
                     video_capture.release()
                 except Exception as e:
-                    print(f"Error stopping video stream: {e}")
+                    pass
                 video_capture = None
             emit('streaming_status', {'type': 'video', 'status': 'stopped'})
 
@@ -1116,14 +1103,13 @@ def handle_start_streaming(data):
             init_thread.start()
         elif not audio_requested and audio_stream:
             # Stop audio
-            print("Stopping audio capture...")
             audio_streaming_active = False
             if PYAUDIO_AVAILABLE and audio_stream:
                 try:
                     audio_stream.stop_stream()
                     audio_stream.close()
                 except Exception as e:
-                    print(f"Error stopping audio stream: {e}")
+                    pass
                 audio_stream = None
             emit('streaming_status', {'type': 'audio', 'status': 'stopped'})
 
@@ -1141,7 +1127,7 @@ def handle_stop_streaming():
         try:
             video_capture.release()
         except Exception as e:
-            print(f"Error stopping video stream: {e}")
+            pass
         video_capture = None
 
     # Clean up audio
@@ -1150,7 +1136,7 @@ def handle_stop_streaming():
             audio_stream.stop_stream()
             audio_stream.close()
         except Exception as e:
-            print(f"Error stopping audio stream: {e}")
+            pass
         audio_stream = None
 
     # NOTE: Serial monitor is NOT stopped by "Stop All" - only by serial monitor controls
@@ -1350,14 +1336,11 @@ def handle_send_control_command(data):
 @socketio.on('connect')
 def handle_client_connect():
     """Handle new client connection"""
-    print("Client connected")
 
 @socketio.on('disconnect')
 def handle_client_disconnect():
     """Clean up all resources when client disconnects (e.g., page reload)"""
-    print("Client disconnected - cleaning up all resources")
     cleanup_all_resources()
-    print("Resource cleanup completed")
 
 @app.route('/')
 def index():
@@ -1368,6 +1351,55 @@ def index():
 @app.route('/static/<path:filename>')
 def static_files(filename):
     return send_from_directory('static', filename)
+
+@app.route('/download/<filename>')
+def download_file(filename):
+    """Download files (SOP.pdf, code.zip, etc.)"""
+    try:
+        if filename in ['SOP.pdf', 'code.zip']:
+            view_only = request.args.get('view', 'false').lower() == 'true'
+            return send_from_directory('.', filename, as_attachment=not view_only)
+        else:
+            return jsonify({'error': 'File not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/factory-reset', methods=['POST'])
+def factory_reset():
+    """Flash the default firmware to the selected device"""
+    try:
+        data = request.get_json()
+        device_type = data.get('device_type', 'arduino')  # 'arduino', 'esp32', or 'usbasp'
+        port = data.get('port')
+        
+        if not port:
+            return jsonify({'error': 'Port is required'}), 400
+        
+        # Check if default firmware file exists
+        if not os.path.exists('default_firmware.hex'):
+            return jsonify({'error': 'Default firmware file not found'}), 404
+        
+        # Use the default firmware file
+        firmware_file = 'default_firmware.hex'
+        
+        # Normalize device type
+        device_type = device_type.lower() if device_type else 'arduino'
+        
+        # Determine chip type based on device type and port
+        if device_type == 'esp32':
+            chip_type = 'esp32'
+        else:
+            # For arduino and usbasp, try to detect chip type
+            chip_type = detect_avr_chip(port) if port != 'N/A' else 'atmega328p'
+        
+        # Start upload in background thread
+        thread = threading.Thread(target=upload_firmware, args=(device_type, port, firmware_file, chip_type))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({'message': 'Factory reset started'}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -1533,7 +1565,7 @@ def cleanup_all_resources():
             try:
                 video_capture.release()
             except Exception as e:
-                print(f"Error stopping video stream: {e}")
+                pass
             video_capture = None
     
     # Stop audio streaming
@@ -1544,7 +1576,7 @@ def cleanup_all_resources():
                 audio_stream.stop_stream()
                 audio_stream.close()
             except Exception as e:
-                print(f"Error stopping audio stream: {e}")
+                pass
             audio_stream = None
     
     # Stop serial monitoring and plot
@@ -1560,14 +1592,14 @@ def cleanup_all_resources():
         try:
             socketio.emit('stop_serial_plot', {})
         except Exception as e:
-            print(f"Error emitting stop_serial_plot: {e}")
+            pass
     
     # Stop logic analyzer if running
     try:
         if logic_analyzer_manager:
             logic_analyzer_manager.stop_acquisition()
     except Exception as e:
-        print(f"Error stopping logic analyzer: {e}")
+        pass
 
 def initialize_logic_analyzer():
     """Initialize logic analyzer manager after app is created"""
@@ -1931,13 +1963,12 @@ def media_dispatcher_thread():
                 
                 # Log if queue is backing up (indicates frontend can't keep pace)
                 if audio_data_queue.qsize() > 5:
-                    print(f"⚠️ Audio queue backing up: {audio_data_queue.qsize()} frames queued")
+                    pass
                 
                 # Small sleep to prevent busy waiting
                 time.sleep(0.001)
                 
             except Exception as e:
-                print(f"Error in media dispatcher: {e}")
                 time.sleep(0.01)
     finally:
         dispatcher_thread_running = False

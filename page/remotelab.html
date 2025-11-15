@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Remote Lab Interface</title>
+    <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
     <style>
         .slider::-webkit-slider-thumb {
@@ -268,6 +269,31 @@
     <div class="flex h-[calc(100vh-80px)]">
         <!-- Left Panel - Device controls and hub controls -->
         <div class="w-1/3 p-6 space-y-6 overflow-y-auto">
+            <!-- Resources Section -->
+            <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">
+                    Resources & Setup
+                </h2>
+                
+                <!-- Resources Buttons -->
+                <div class="grid grid-cols-2 gap-2 mb-4">
+                    <button onclick="viewPDF('SOP.pdf')" 
+                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg py-2 px-3 text-sm transition-all duration-200">
+                        View SOP
+                    </button>
+                    <button onclick="downloadFile('code.zip')" 
+                        class="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/50 rounded-lg py-2 px-3 text-sm transition-all duration-200">
+                        Download Code
+                    </button>
+                </div>
+
+                <!-- Factory Default Button -->
+                <button onclick="factoryReset()" 
+                    class="w-full bg-red-500/20 hover:bg-red-500/30 border border-red-500/50 rounded-lg py-2 px-3 text-sm transition-all duration-200">
+                    Factory Default
+                </button>
+            </div>
+
             <!-- Device Control -->
             <div class="bg-white/5 backdrop-blur-sm rounded-xl p-6 border border-white/10">
                 <h2 class="text-xl font-semibold mb-4 text-blue-300">
@@ -683,7 +709,6 @@
                         const stopBtn = document.getElementById('oscilloscopeStopBtn');
                         if (startBtn) startBtn.disabled = false;
                         if (stopBtn) stopBtn.disabled = true;
-                        console.log('Serial plot stopped due to serial monitor disconnect');
                     }
                 });
 
@@ -788,12 +813,11 @@
                 });
 
                 socket.on('hub_control_error', function (data) {
-                    console.error('Hub control error:', data.message);
+    
                     alert('Hub Control Error: ' + data.message);
                 });
 
             } catch (error) {
-                console.error('Failed to initialize Socket.IO:', error);
                 alert('Failed to connect to server. Please refresh the page.');
             }
         }
@@ -880,9 +904,7 @@
                 try {
                     const AudioContext = window.AudioContext || window.webkitAudioContext;
                     audioContext = new AudioContext({ sampleRate: 44100 });
-                    console.log('Audio context initialized at 44.1kHz');
                 } catch (e) {
-                    console.error('Failed to initialize audio context:', e);
                 }
             }
             return audioContext;
@@ -890,7 +912,6 @@
 
         function playAudioData(hexData) {
             if (!initAudioContext()) {
-                console.error('Audio context not available');
                 return;
             }
 
@@ -918,7 +939,6 @@
                 // Log queue stats periodically
                 const now = Date.now();
                 if (now - lastQueueCheckTime > 5000) {
-                    console.log(`Audio Queue: size=${audioQueue.length}, max=${audioQueueStats.maxSize}, drops=${audioQueueStats.dropsDetected}`);
                     lastQueueCheckTime = now;
                     audioQueueStats.maxSize = audioQueue.length;
                 }
@@ -928,7 +948,6 @@
                     playNextAudioBuffer();
                 }
             } catch (e) {
-                console.error('Error processing audio data:', e);
             }
         }
 
@@ -971,7 +990,6 @@
                     
                     // If drift exceeds 100ms, resync (prevents accumulation)
                     if (Math.abs(drift) > 0.1) {
-                        console.warn(`Audio drift detected: ${(drift * 1000).toFixed(1)}ms, resyncing`);
                         audioStartTime = audioContext.currentTime;
                         scheduleAheadTime = audioStartTime;
                     }
@@ -985,7 +1003,6 @@
                 // Schedule next buffer when this one finishes
                 currentSource.onended = playNextAudioBuffer;
             } catch (e) {
-                console.error('Error playing audio buffer:', e);
                 currentSource = null;
                 audioQueueStats.dropsDetected++;
                 setTimeout(playNextAudioBuffer, 10);
@@ -1238,47 +1255,132 @@
             }
         }
 
-        // Device management functions
-        function refreshDevices() {
-            // Add spinning animation
-            const refreshIcon = document.querySelector('.refresh-icon');
-            if (refreshIcon) {
-                refreshIcon.classList.add('spinning');
+        // Resource management functions
+        function downloadFile(filename) {
+            // Trigger download
+            const link = document.createElement('a');
+            link.href = `/download/${filename}`;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function viewPDF(filename) {
+            // Open PDF in a new tab (view only, don't download)
+            window.open(`/download/${filename}?view=true`, '_blank');
+        }
+
+        function factoryReset() {
+            // Get selected device
+            const selectedDevice = document.querySelector('.device-item.selected');
+            if (!selectedDevice) {
+                alert('Please select a device first');
+                return;
             }
 
-            fetch('/devices')
-                .then(response => response.json())
-                .then(data => {
-                    const devicesList = document.getElementById('devicesList');
-                    if (data.devices.length === 0) {
-                        devicesList.innerHTML = '<div class="device-item">No devices detected</div>';
-                        updateFlashButtonState();
-                    } else {
-                        devicesList.innerHTML = '';
-                        data.devices.forEach(device => {
-                            const deviceItem = document.createElement('div');
-                            deviceItem.className = 'device-item';
-                            deviceItem.onclick = () => selectDevice(deviceItem, device);
-                            deviceItem.innerHTML = `<strong>${device[2]}</strong><br><small>${device[1]}</small>`;
-                            devicesList.appendChild(deviceItem);
-                        });
-                        updateFlashButtonState();
+            // Confirm action
+            if (!confirm('This will flash the default firmware to the selected device. Continue?')) {
+                return;
+            }
+
+            // Extract device info from the selected item
+            const deviceText = selectedDevice.innerText;
+            const deviceType = selectedDevice.getAttribute('data-type') || 'arduino';
+            const port = selectedDevice.getAttribute('data-port');
+
+            if (!port) {
+                alert('Device port not found');
+                return;
+            }
+
+            // Disable button and show progress
+            const factoryBtn = event.target.closest('button');
+            if (factoryBtn) {
+                factoryBtn.disabled = true;
+                factoryBtn.textContent = 'Processing...';
+            }
+
+            // Send factory reset request
+            fetch('/factory-reset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ device_type: deviceType, port: port })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.message) {
+                    alert('Factory reset started. Check the flash progress below.');
+                    if (factoryBtn) {
+                        factoryBtn.disabled = false;
+                        factoryBtn.textContent = 'Factory Default';
                     }
-                })
-                .catch(error => {
-                    console.error('Error fetching devices:', error);
-                    document.getElementById('devicesList').innerHTML = '<div class="device-item">Error loading devices</div>';
-                    updateFlashButtonState();
-                })
-                .finally(() => {
-                    // Remove spinning animation after a short delay
-                    setTimeout(() => {
-                        if (refreshIcon) {
-                            refreshIcon.classList.remove('spinning');
-                        }
-                    }, 500);
-                });
+                } else if (data.error) {
+                    alert('Error: ' + data.error);
+                    if (factoryBtn) {
+                        factoryBtn.disabled = false;
+                        factoryBtn.textContent = 'Factory Default';
+                    }
+                }
+            })
+            .catch(error => {
+                alert('Failed to start factory reset: ' + error);
+                if (factoryBtn) {
+                    factoryBtn.disabled = false;
+                    factoryBtn.textContent = 'Factory Default';
+                }
+            });
         }
+
+        // Device management functions
+        function refreshDevices() {
+             // Add spinning animation
+             const refreshIcon = document.querySelector('.refresh-icon');
+             if (refreshIcon) {
+                 refreshIcon.classList.add('spinning');
+             }
+
+             fetch('/devices')
+                 .then(response => response.json())
+                 .then(data => {
+                     const devicesList = document.getElementById('devicesList');
+                     if (data.devices.length === 0) {
+                         devicesList.innerHTML = '<div class="device-item">No devices detected</div>';
+                         updateFlashButtonState();
+                     } else {
+                         devicesList.innerHTML = '';
+                         data.devices.forEach((device, index) => {
+                             const deviceItem = document.createElement('div');
+                             deviceItem.className = 'device-item';
+                             deviceItem.setAttribute('data-type', device[0]);  // device[0] is device_type
+                             deviceItem.setAttribute('data-port', device[1]);  // device[1] is port
+                             deviceItem.setAttribute('data-chip', device[3]);  // device[3] is chip_type
+                             deviceItem.onclick = () => selectDevice(deviceItem, device);
+                             deviceItem.innerHTML = `<strong>${device[2]}</strong><br><small>${device[1]}</small>`;
+                             devicesList.appendChild(deviceItem);
+                             
+                             // Auto-select first device if only one device connected
+                             // or if multiple devices, select the first one
+                             if (index === 0) {
+                                 selectDevice(deviceItem, device);
+                             }
+                         });
+                         updateFlashButtonState();
+                     }
+                 })
+                 .catch(error => {
+                     document.getElementById('devicesList').innerHTML = '<div class="device-item">Error loading devices</div>';
+                     updateFlashButtonState();
+                 })
+                 .finally(() => {
+                     // Remove spinning animation after a short delay
+                     setTimeout(() => {
+                         if (refreshIcon) {
+                             refreshIcon.classList.remove('spinning');
+                         }
+                     }, 500);
+                 });
+         }
 
         function selectDevice(item, device) {
             // Remove previous selection
@@ -1373,7 +1475,6 @@
                     }
                 })
                 .catch(error => {
-                    console.error('Validation error:', error);
                     validationStatus.classList.remove('hidden', 'bg-green-500/20');
                     validationStatus.classList.add('bg-red-500/20', 'border', 'border-red-500/50');
                     validationMessage.innerHTML = '<span class="text-red-400">✗ Error during validation</span>';
@@ -1422,7 +1523,6 @@
                         .then(data => {
                         })
                         .catch(error => {
-                            console.error('Flash error:', error);
                             alert('Failed to start flashing process');
                         });
                 });
@@ -1457,7 +1557,6 @@
                             }
                         })
                         .catch(error => {
-                            console.error('Upload error:', error);
                             alert('Upload failed!');
                         });
                 });
@@ -2143,7 +2242,6 @@
                     if (confirmed) {
                         window.serialPlotData.customPatterns.splice(idx, 1);
                         delete window.serialValuePatterns[patternName];
-                        console.log('[PATTERN REMOVED]:', patternName);
                         updateCustomPatternsList();
                         updateSerialValues(true);
                     }
@@ -2185,7 +2283,6 @@
                     // Add new pattern to slide-specific storage
                     window.serialPlotData.customPatterns.push(pattern);
 
-                    console.log('[CUSTOM PATTERN] Added:', pattern);
                     inputElement.value = ''; // Clear input
                     inputElement.focus();
 
@@ -2230,7 +2327,6 @@
                     return parseFloat(match[1]);
                 }
             } catch (e) {
-                console.error('Invalid custom format pattern:', format, e);
             }
             return null;
         }
@@ -2312,7 +2408,6 @@
                             // Remove from serialValuePatterns
                             delete window.serialValuePatterns[patternName];
 
-                            console.log('[PATTERN REMOVED]:', patternName);
                             updateSerialValues(true);
                         }
                     }
@@ -2375,8 +2470,6 @@
                 selectElementCH1.value = values[0].name;
                 serialPlotData.ch1.values = window.serialValuePatterns[values[0].name].values;
                 serialPlotData.ch1.timestamps = window.serialValuePatterns[values[0].name].timestamps;
-
-                console.log(`[AUTO-SELECT] CH1: ${values[0].name}`);
             } else if (!currentCH2 && values.length >= 2) {
                 // Auto-select second value for CH2 if only CH2 is empty and we have at least 2 values
                 // Find the first value that's not selected in CH1
@@ -2831,14 +2924,7 @@
         }
 
         function updateControlCommand(controlId, commandName, isReader = false) {
-            if (!socket || !socket.connected) {
-                console.warn('Socket not connected - will still attempt REST update');
-            }
-
             const control = hubControls.find(c => c.id === controlId);
-            if (!control) {
-                console.warn('Control not found locally for update:', controlId);
-            }
 
             // For reader controls, ensure we don't modify the value format if it contains {value}
             let template = commandName;
@@ -2853,10 +2939,8 @@
             try {
                 if (socket && socket.connected) {
                     socket.emit('update_hub_control', updateData);
-                    console.log('Sent update_hub_control via socket:', updateData);
                 }
             } catch (e) {
-                console.warn('Socket emit failed, will try REST fallback', e);
             }
 
             // Also send a REST fallback to ensure backend receives the update
@@ -2870,9 +2954,7 @@
                 }
                 return resp.json();
             }).then(json => {
-                console.log('REST update_hub_control response:', json);
             }).catch(err => {
-                console.warn('REST fallback failed to update control:', err);
             });
         }
 
@@ -3861,7 +3943,8 @@
 
                 // Use locked range for stable y-axis
                 const lockedRange = data.lockedMaxValue - data.lockedMinValue;
-                const yScale = (height / 2) / (lockedRange || 1);
+                const yScale = height / (lockedRange || 1);
+                const midValue = (data.lockedMaxValue + data.lockedMinValue) / 2;
                 
                 // Calculate x-scale with fixed timespan
                 const xScale = width / timeRange;
@@ -3870,7 +3953,7 @@
                 let pathData = '';
                 validPoints.forEach((point, i) => {
                     const x = (point.timestamp - startTime) * xScale;
-                    const y = height / 2 - ((point.value - data.lockedMinValue) * yScale);
+                    const y = height / 2 - ((point.value - midValue) * yScale);
                     pathData += (i === 0 ? 'M' : 'L') + ` ${x} ${y}`;
                 });
 
@@ -3891,7 +3974,7 @@
 
                 for (let i = 0; i <= scaleSteps; i++) {
                     const value = data.lockedMinValue + (data.lockedMaxValue - data.lockedMinValue) * (i / scaleSteps);
-                    const y = height / 2 - ((value - data.lockedMinValue) * yScale);
+                    const y = height / 2 - ((value - midValue) * yScale);
 
                     // Clamp y position to prevent text from going outside SVG bounds
                     const clampedY = Math.max(12, Math.min(height - 2, y + 4));
