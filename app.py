@@ -50,7 +50,7 @@ audio_streaming_active = False
 serial_monitoring_active = False
 
 # Non-blocking queue for audio to prevent emit() blocking
-audio_data_queue = Queue(maxsize=2)  # Keep only 2 buffers max to minimize latency and prevent accumulation
+audio_data_queue = Queue(maxsize=1)  # Keep only 1 buffer max to minimize latency and prevent accumulation
 
 # Device configurations
 ARDUINO_IDS = {'2341', '2a03', '1a86'}
@@ -87,7 +87,7 @@ def detect_control_type(value_name, context=""):
     if any(keyword in name_lower for keyword in ['enable', 'disable', 'on', 'off', 'state', 'status', 'dir', 'direction']):
         return {
             'type': 'toggle',
-            'command_template': f'{value_name}={{value}}',
+            'command_template': '{value}',
             'value_options': ['0', '1'],  # Default on/off values
             'display_options': ['OFF', 'ON'],
             'allow_custom_values': True  # Allow users to enter custom values
@@ -97,89 +97,12 @@ def detect_control_type(value_name, context=""):
     elif any(keyword in name_lower for keyword in ['dir', 'direction', 'forward', 'reverse', 'cw', 'ccw']):
         return {
             'type': 'toggle',
-            'command_template': f'{value_name}={{value}}',
+            'command_template': '{value}',
             'value_options': ['0', '1'],
             'display_options': ['REVERSE', 'FORWARD']
         }
 
-    # Servo/Angle controls
-    elif any(keyword in name_lower for keyword in ['servo', 'angle', 'degree', 'deg', 'pos', 'position']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 180,
-            'step': 1,
-            'unit': '°',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Temperature controls
-    elif any(keyword in name_lower for keyword in ['temp', 'temperature']):
-        return {
-            'type': 'slider',
-            'min': -50,
-            'max': 150,
-            'step': 0.1,
-            'unit': '°C',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Speed/RPM controls
-    elif any(keyword in name_lower for keyword in ['speed', 'rpm', 'velocity']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 1000,
-            'step': 10,
-            'unit': 'RPM',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Voltage controls
-    elif any(keyword in name_lower for keyword in ['volt', 'voltage', 'v']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 5,
-            'step': 0.1,
-            'unit': 'V',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Current controls
-    elif any(keyword in name_lower for keyword in ['current', 'amp', 'amps', 'i']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 5,
-            'step': 0.1,
-            'unit': 'A',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Pressure controls
-    elif any(keyword in name_lower for keyword in ['press', 'pressure', 'psi', 'bar']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 100,
-            'step': 1,
-            'unit': 'PSI',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Distance/Position controls
-    elif any(keyword in name_lower for keyword in ['dist', 'distance', 'cm', 'mm', 'inch']):
-        return {
-            'type': 'slider',
-            'min': 0,
-            'max': 100,
-            'step': 1,
-            'unit': 'cm',
-            'command_template': f'{value_name}={{value}}'
-        }
-
-    # Default numeric control
+    # Default slider control for all other cases
     else:
         return {
             'type': 'slider',
@@ -187,7 +110,7 @@ def detect_control_type(value_name, context=""):
             'max': 100,
             'step': 1,
             'unit': '',
-            'command_template': f'{value_name}={{value}}'
+            'command_template': '{value}'
         }
 
 def analyze_serial_data_for_controls(data):
@@ -241,13 +164,14 @@ def analyze_serial_data_for_controls(data):
                                     'last_seen': time.time()
                                 }
                                 
-                                # Update the control value immediately
-                                update_control_value(control['id'], num)
-                                # Emit update to frontend
-                                socketio.emit('hub_control_updated', {'control': {
-                                    'id': control['id'],
-                                    'current_value': num
-                                }})
+                                # Only update the control value if NOT awaiting confirmation
+                                # This prevents auto-updates while user is still configuring the pattern
+                                if not control.get('awaiting_confirmation', False):
+                                    update_control_value(control['id'], num)
+                                    # Emit update to frontend with full control config
+                                    control_copy = control.copy()
+                                    control_copy['current_value'] = num
+                                    socketio.emit('hub_control_updated', {'control': control_copy})
                             except ValueError:
                                 pass
             except Exception:
@@ -306,16 +230,17 @@ def analyze_serial_data_for_controls(data):
         else:
             serial_value_patterns[var_name].update(info)
 
-        # Auto-update Reader controls with detected values
+        # Auto-update Reader controls with detected values (only if not awaiting confirmation)
         for control in hub_controls:
             if control['type'] == 'reader' and control['name'].lower() == var_name.lower():
-                # Update the control value
-                update_control_value(control['id'], info['value'])
-                # Emit update to frontend
-                socketio.emit('hub_control_updated', {'control': {
-                    'id': control['id'],
-                    'current_value': info['value']
-                }})
+                # Only update if NOT awaiting user confirmation of the command pattern
+                if not control.get('awaiting_confirmation', False):
+                    # Update the control value
+                    update_control_value(control['id'], info['value'])
+                    # Emit update to frontend with full control config
+                    control_copy = control.copy()
+                    control_copy['current_value'] = info['value']
+                    socketio.emit('hub_control_updated', {'control': control_copy})
 
     # Store detected commands globally
     if not hasattr(analyze_serial_data_for_controls, 'detected_commands'):
@@ -348,12 +273,17 @@ def create_hub_control(value_name, device_info=None, control_type=None):
         return None
 
     # Thread-safe check for deleted controls (permanently deleted)
+    # Only applies to auto-detected controls, not manually created ones
     with deleted_reader_controls_lock:
         value_name_lower = value_name.lower()
-        # Check if this control was explicitly deleted by the user
-        if value_name_lower in deleted_reader_controls:
-            # Control was permanently deleted - don't recreate
-            print(f"Control creation skipped for '{value_name}' (reserved or deleted)")
+        # If explicitly creating a new control with a deleted name, allow it and clear the block
+        # This only prevents auto-recreation from serial data
+        if control_type and value_name_lower in deleted_reader_controls:
+            # User is explicitly creating a new control - remove from deleted list
+            deleted_reader_controls.discard(value_name_lower)
+            print(f"Cleared deletion block for '{value_name}' - allowing recreation")
+        elif not control_type and value_name_lower in deleted_reader_controls:
+            # Auto-detecting (control_type is None) - don't recreate deleted reader controls
             return None
 
     # Thread-safe check and creation
@@ -397,6 +327,10 @@ def create_hub_control(value_name, device_info=None, control_type=None):
             'created': time.time(),
             'enabled': True
         }
+
+        # For reader controls, mark as awaiting confirmation until user sets the command pattern
+        if control_config['type'] == 'reader':
+            control['awaiting_confirmation'] = True
 
         hub_controls.append(control)
         return control
@@ -444,7 +378,6 @@ def send_control_command(control_id, value):
 
         return True
     except Exception as e:
-        print(f"Error sending control command: {e}")
         return False
 
 # Video capture initialization moved to HTTPVideoStreamer class in http_video_streamer.py
@@ -470,34 +403,30 @@ def check_audio_devices():
 
                 if device_info.get('maxInputChannels') > 0:
                     # Test if device actually works by trying to read data
-                    try:
-                        test_stream = audio.open(
-                            format=pyaudio.paInt16,
-                            channels=1,
-                            rate=44100,
-                            input=True,
-                            input_device_index=i,
-                            frames_per_buffer=1024
-                        )
+                     try:
+                         test_stream = audio.open(
+                             format=pyaudio.paInt16,
+                             channels=1,
+                             rate=44100,
+                             input=True,
+                             input_device_index=i,
+                             frames_per_buffer=1024
+                         )
 
-                        # Try to read a small amount of data to verify device works
-                        test_data = test_stream.read(1024, exception_on_overflow=False)
-                        test_stream.close()
+                         # Try to read a small amount of data to verify device works
+                         test_data = test_stream.read(1024, exception_on_overflow=False)
+                         test_stream.close()
 
-                        # Check if we got actual audio data (not just silence)
-                        if test_data and len(test_data) > 0:
-                            # Convert to numpy array to check for actual audio content
-                            audio_array = np.frombuffer(test_data, dtype=np.int16)
-                            # Check if there's any non-zero audio data (not just silence)
-                            if np.any(audio_array != 0):
-                                working_devices.append(device_info)
-                            else:
-                                pass
-                        else:
-                            pass
+                         # Check if we got actual audio data (not just silence)
+                         if test_data and len(test_data) > 0:
+                             # Convert to numpy array to check for actual audio content
+                             audio_array = np.frombuffer(test_data, dtype=np.int16)
+                             # Check if there's any non-zero audio data (not just silence)
+                             if np.any(audio_array != 0):
+                                 working_devices.append(device_info)
 
-                    except Exception as e:
-                        continue
+                     except Exception as e:
+                         continue
 
             except Exception as e:
                 continue
@@ -509,7 +438,6 @@ def check_audio_devices():
 
         return len(working_devices) > 0, working_devices
     except Exception as e:
-        print(f"Error checking audio devices: {e}")
         return False, []
 
 def initialize_audio_stream():
@@ -522,7 +450,6 @@ def initialize_audio_stream():
     # First check if audio devices are available
     devices_available, device_list = check_audio_devices()
     if not devices_available:
-        print("No audio input devices found - audio will not be available")
         return False
 
     try:
@@ -543,14 +470,12 @@ def initialize_audio_stream():
                 )
                 test_stream.close()
                 input_device_index = int(device['index'])
-                print(f"Found working audio device: {device['name']} at index {input_device_index}")
+
                 break
             except Exception as e:
-                print(f"Device {device['name']} not available: {e}")
                 continue
 
         if input_device_index is None:
-            print("No working audio input device found")
             audio.terminate()
             return False
 
@@ -566,11 +491,8 @@ def initialize_audio_stream():
             frames_per_buffer=FRAMES_PER_BUFFER,  # Larger buffer for better stability
             stream_callback=None  # Use blocking mode for consistent timing
         )
-        print(f"Audio stream initialized at {SAMPLE_RATE}Hz with {FRAMES_PER_BUFFER} frame buffer")
-        print("Audio stream initialized successfully")
         return True
     except Exception as e:
-        print(f"Error initializing audio stream: {e}")
         # Make sure to clean up any partial audio objects
         try:
             if 'audio' in locals():
@@ -587,7 +509,6 @@ def initialize_serial_connection(port, baudrate=9600):
         serial_connection = serial.Serial(port, baudrate, timeout=1)
         return True
     except Exception as e:
-        print(f"Error initializing serial connection: {e}")
         return False
 
 # MJPEG frame generation now handled by http_video_streamer module
@@ -1107,7 +1028,7 @@ def handle_create_hub_control(data):
 
         if control is None:
             # Control creation returned None - could be due to reserved keywords or deleted control
-            # Don't emit error for auto-creation attempts to avoid spam
+            emit('hub_control_error', {'message': f'Cannot create control "{value_name}" - it may be reserved or was previously deleted'})
             print(f"Control creation skipped for '{value_name}' (reserved or deleted)")
             return
 
@@ -1733,6 +1654,8 @@ def update_hub_control(control_id):
                     control['device'].update(data['device'])
                 if 'enabled' in data:
                     control['enabled'] = data['enabled']
+                if 'awaiting_confirmation' in data:
+                    control['awaiting_confirmation'] = data['awaiting_confirmation']
 
                 return jsonify({'control': control}), 200
 
@@ -1820,9 +1743,6 @@ def start_media_dispatcher():
 def media_dispatcher_thread():
     """Thread to dispatch queued audio data without blocking capture threads"""
     global audio_data_queue, audio_streaming_active, dispatcher_thread_running
-    
-    print("Media dispatcher thread started (audio only)")
-    
     try:
         while audio_streaming_active:
             try:
@@ -1843,7 +1763,6 @@ def media_dispatcher_thread():
                 time.sleep(0.01)
     finally:
         dispatcher_thread_running = False
-        print("Media dispatcher thread stopped")
 
 def print_network_info():
     """Print network information on startup"""

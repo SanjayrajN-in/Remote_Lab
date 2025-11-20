@@ -230,42 +230,19 @@ class FirmwareValidator:
         if not os.path.exists(hex_file):
             return False, f"Firmware file not found: {hex_file}", {}
         
-        # Get the correct chip architecture for avr-objdump
-        chip_arch = self.CHIP_ARCH_MAP.get(chip_type, 'avr5')
+        # Check if chip has any pin restrictions to validate
+        chip_rules = self.rules[chip_type]
+        restrictions = chip_rules.get('pin_restrictions', {})
         
-        # Step 1: Generate disassembly for chip detection
-        disassembly_file = hex_file.replace('.hex', '_disassembly.txt')
-        success, msg = self.hex_to_disassembly(hex_file, disassembly_file, chip_type, chip_arch)
+        # If no restrictions defined, no validation needed
+        if not restrictions:
+            return True, f"Firmware for {chip_type} accepted (no pin restrictions defined)", {}
         
-        if not success:
-            return False, f"Disassembly generation failed: {msg}", {}
-        
-        # Step 2: Detect if firmware is compiled for a different architecture
-        detected_chip = self.detect_chip_from_disassembly(disassembly_file)
-        if detected_chip:
-            detected_arch = self.CHIP_ARCH_MAP.get(detected_chip, 'unknown')
-            selected_arch = self.CHIP_ARCH_MAP.get(chip_type, 'unknown')
-            # Only fail if architectures are significantly different
-            if detected_arch == 'avr6' and selected_arch == 'avr5':
-                return False, f"Firmware appears to be for larger chip ({detected_chip}) but you selected {chip_type}", {}
-            elif detected_arch == 'avr5' and selected_arch == 'avr6':
-                return False, f"Firmware appears to be for smaller chip ({detected_chip}) but you selected {chip_type}", {}
-        
-        # Clean up disassembly file (no longer needed)
-        try:
-            os.remove(disassembly_file)
-        except:
-            pass
-        
-        # Step 3: Parse pin operations from hex encoding
+        # Parse pin operations from hex encoding
         pin_operations = self.parse_pin_operations(hex_file)
         
         if not pin_operations:
             return True, "No pin operations detected in firmware (valid)", {}
-        
-        # Step 4: Validate against rules
-        chip_rules = self.rules[chip_type]
-        restrictions = chip_rules.get('pin_restrictions', {})
         
         for pin_num, operations in pin_operations.items():
             pin_key = f"pin_{pin_num}"

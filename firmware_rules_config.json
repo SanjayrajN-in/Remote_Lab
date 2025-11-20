@@ -7,7 +7,6 @@
           "description": "RX pin - Reserved for Serial communication",
           "allowed_modes": []
         },
-       
         "pin_13": {
           "description": "Built-in LED pin",
           "allowed_modes": ["output"]
@@ -39,6 +38,10 @@
           "allowed_modes": []
         }
       }
+    },
+    "esp32": {
+      "chip_name": "ESP32",
+      "pin_restrictions": {}
     }
   }
 }
