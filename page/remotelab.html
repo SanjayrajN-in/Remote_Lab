@@ -911,66 +911,77 @@
     <script>
         // Modern Confirmation Dialog
         function showConfirmationDialog(title, message, onConfirm, isFactory = false) {
-            const overlay = document.createElement('div');
-            overlay.className = 'confirmation-overlay';
-            
-            const dialog = document.createElement('div');
-            dialog.className = 'confirmation-dialog';
-            
-            dialog.innerHTML = `
-                <div class="confirmation-title">${title}</div>
-                <div class="confirmation-message">${message}</div>
-                <div class="confirmation-buttons">
-                    <button class="confirmation-btn confirmation-btn-cancel" data-action="cancel">Cancel</button>
-                    <button class="confirmation-btn confirmation-btn-confirm ${isFactory ? 'factory' : ''}" data-action="confirm">Confirm</button>
-                </div>
-            `;
-            
-            overlay.appendChild(dialog);
-            document.body.appendChild(overlay);
-            
-            // Get buttons for event handling
-            const cancelBtn = dialog.querySelector('[data-action="cancel"]');
-            const confirmBtn = dialog.querySelector('[data-action="confirm"]');
-            
-            // Function to close and cleanup
-            const closeDialog = (confirmed = false) => {
-                document.removeEventListener('keydown', keyHandler);
-                overlay.removeEventListener('click', overlayClickHandler);
-                overlay.remove();
-                if (confirmed) {
-                    onConfirm();
-                }
-            };
-            
-            // Cancel button
-            cancelBtn.addEventListener('click', () => closeDialog(false));
-            
-            // Confirm button
-            confirmBtn.addEventListener('click', () => closeDialog(true));
-            
-            // Close on overlay click
-            const overlayClickHandler = function(e) {
-                if (e.target === overlay) {
-                    closeDialog(false);
-                }
-            };
-            overlay.addEventListener('click', overlayClickHandler);
-            
-            // Handle both Enter and Escape keys
-            const keyHandler = function(e) {
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeDialog(false);
-                } else if (e.key === 'Enter') {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    closeDialog(true);
-                }
-            };
-            document.addEventListener('keydown', keyHandler, true); // Use capture phase
-        }
+             const overlay = document.createElement('div');
+             overlay.className = 'confirmation-overlay';
+             overlay.setAttribute('data-dialog', 'confirmation');
+             
+             const dialog = document.createElement('div');
+             dialog.className = 'confirmation-dialog';
+             dialog.setAttribute('tabindex', '0');
+             
+             dialog.innerHTML = `
+                 <div class="confirmation-title">${title}</div>
+                 <div class="confirmation-message">${message}</div>
+                 <div class="confirmation-buttons">
+                     <button class="confirmation-btn confirmation-btn-cancel" data-action="cancel">Cancel</button>
+                     <button class="confirmation-btn confirmation-btn-confirm ${isFactory ? 'factory' : ''}" data-action="confirm">Confirm</button>
+                 </div>
+             `;
+             
+             overlay.appendChild(dialog);
+             document.body.appendChild(overlay);
+             
+             // Get buttons for event handling
+             const cancelBtn = dialog.querySelector('[data-action="cancel"]');
+             const confirmBtn = dialog.querySelector('[data-action="confirm"]');
+             
+             let dialogClosed = false;
+             
+             // Function to close and cleanup
+             const closeDialog = (confirmed = false) => {
+                 if (dialogClosed) return; // Prevent multiple calls
+                 dialogClosed = true;
+                 document.removeEventListener('keydown', keyHandler);
+                 overlay.removeEventListener('click', overlayClickHandler);
+                 overlay.remove();
+                 if (confirmed) {
+                     onConfirm();
+                 }
+             };
+             
+             // Cancel button
+             cancelBtn.addEventListener('click', () => closeDialog(false));
+             
+             // Confirm button
+             confirmBtn.addEventListener('click', () => closeDialog(true));
+             
+             // Close on overlay click
+             const overlayClickHandler = function(e) {
+                 if (e.target === overlay) {
+                     closeDialog(false);
+                 }
+             };
+             overlay.addEventListener('click', overlayClickHandler);
+             
+             // Handle Escape and Enter keys - attach to document but check if dialog exists
+             const keyHandler = function(e) {
+                 if (document.querySelector('[data-dialog="confirmation"]')) {
+                     if (e.key === 'Escape') {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         closeDialog(false);
+                     } else if (e.key === 'Enter') {
+                         e.preventDefault();
+                         e.stopPropagation();
+                         closeDialog(true);
+                     }
+                 }
+             };
+             document.addEventListener('keydown', keyHandler);
+             
+             // Focus the dialog for better UX
+             setTimeout(() => dialog.focus(), 0);
+         }
     </script>
     <script>
         let socket = null;
@@ -1187,9 +1198,8 @@
                 });
 
                 socket.on('control_command_sent', function (data) {
-                    updateControlValueDisplay(data.id, data.value);
-                    Notifications.controlCommandSent(data.name || 'Control', data.value);
-                });
+                     updateControlValueDisplay(data.id, data.value);
+                 });
 
                 socket.on('hub_control_error', function (data) {
                     Notifications.controlCommandFailed(data.name || 'Control', data.message);
@@ -1949,10 +1959,10 @@
 
         // Serial monitor functions
         function setupSerialControls() {
-            const toggleBtn = document.getElementById('serialToggleBtn');
-            const sendBtn = document.querySelector('.bg-blue-500\\/20');
-            const commandInput = document.querySelector('input[placeholder="Enter command..."]');
-            const baudSelect = document.querySelector('select');
+             const toggleBtn = document.getElementById('serialToggleBtn');
+             const commandInput = document.querySelector('input[placeholder="Enter command..."]');
+             const sendBtn = commandInput ? commandInput.parentElement.querySelector('button') : null;
+             const baudSelect = document.querySelector('select');
 
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function () {
@@ -2825,52 +2835,65 @@
 
         // Custom confirmation dialog matching app styling
          function showConfirmDialog(title, message) {
-             return new Promise((resolve) => {
-                 const overlay = document.createElement('div');
-                 overlay.className = 'confirmation-overlay';
-                 
-                 const dialog = document.createElement('div');
-                 dialog.className = 'confirmation-dialog';
-                 dialog.innerHTML = `
-                     <div class="confirmation-title">${title}</div>
-                     <div class="confirmation-message">${message}</div>
-                     <div class="confirmation-buttons">
-                         <button class="confirmation-btn confirmation-btn-cancel" data-action="cancel">Cancel</button>
-                         <button class="confirmation-btn confirmation-btn-confirm" data-action="confirm">Remove</button>
-                     </div>
-                 `;
-                 
-                 overlay.appendChild(dialog);
-                 document.body.appendChild(overlay);
-                 
-                 const handleClose = (confirmed) => {
-                     overlay.remove();
-                     resolve(confirmed);
-                 };
-                 
-                 const cancelBtn = dialog.querySelector('[data-action="cancel"]');
-                 const confirmBtn = dialog.querySelector('[data-action="confirm"]');
-                 
-                 cancelBtn.addEventListener('click', () => handleClose(false));
-                 confirmBtn.addEventListener('click', () => handleClose(true));
-                 
-                 // Close on overlay click
-                 overlay.addEventListener('click', (e) => {
-                     if (e.target === overlay) handleClose(false);
-                 });
-                 
-                 // Keyboard event handlers
-                 const handleKeydown = (e) => {
-                     if (e.key === 'Escape') {
-                         handleClose(false);
-                     } else if (e.key === 'Enter') {
-                         handleClose(true);
-                     }
-                 };
-                 overlay.addEventListener('keydown', handleKeydown);
-                 confirmBtn.focus(); // Focus on confirm button for better UX
-             });
-         }
+              return new Promise((resolve) => {
+                  const overlay = document.createElement('div');
+                  overlay.className = 'confirmation-overlay';
+                  overlay.setAttribute('data-dialog', 'confirm');
+                  
+                  const dialog = document.createElement('div');
+                  dialog.className = 'confirmation-dialog';
+                  dialog.setAttribute('tabindex', '0');
+                  dialog.innerHTML = `
+                      <div class="confirmation-title">${title}</div>
+                      <div class="confirmation-message">${message}</div>
+                      <div class="confirmation-buttons">
+                          <button class="confirmation-btn confirmation-btn-cancel" data-action="cancel">Cancel</button>
+                          <button class="confirmation-btn confirmation-btn-confirm" data-action="confirm">Remove</button>
+                      </div>
+                  `;
+                  
+                  overlay.appendChild(dialog);
+                  document.body.appendChild(overlay);
+                  
+                  let dialogClosed = false;
+                  
+                  const handleClose = (confirmed) => {
+                      if (dialogClosed) return; // Prevent multiple calls
+                      dialogClosed = true;
+                      document.removeEventListener('keydown', handleKeydown);
+                      overlay.remove();
+                      resolve(confirmed);
+                  };
+                  
+                  const cancelBtn = dialog.querySelector('[data-action="cancel"]');
+                  const confirmBtn = dialog.querySelector('[data-action="confirm"]');
+                  
+                  cancelBtn.addEventListener('click', () => handleClose(false));
+                  confirmBtn.addEventListener('click', () => handleClose(true));
+                  
+                  // Close on overlay click
+                  overlay.addEventListener('click', (e) => {
+                      if (e.target === overlay) handleClose(false);
+                  });
+                  
+                  // Keyboard event handlers - attach to document but check if dialog exists
+                  const handleKeydown = (e) => {
+                      if (document.querySelector('[data-dialog="confirm"]')) {
+                          if (e.key === 'Escape') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleClose(false);
+                          } else if (e.key === 'Enter') {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleClose(true);
+                          }
+                      }
+                  };
+                  document.addEventListener('keydown', handleKeydown);
+                  setTimeout(() => dialog.focus(), 0); // Focus on dialog for keyboard events
+              });
+          }
 
         // Serial value detection for plotting
         function updateSerialValues(forceUpdate = false) {
@@ -3153,7 +3176,7 @@
                             <!-- Current Value Display -->
                             <div class="flex justify-center mb-2">
                                 <span id="value-${control.id}" class="text-2xl font-mono text-blue-400 font-bold">${control.config.min || 0}${control.config.unit ? ' ' + control.config.unit : ''}</span>
-                            </div>e
+                            </div>
 
                             <!-- Slider -->
                             <input
