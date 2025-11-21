@@ -3556,13 +3556,22 @@
             }
         }
 
+        // Track which channel each reader is displaying
+        window.readerSelectedChannels = {};
+
         // Update reader to show selected channel
         function updateReaderChannel(controlId) {
             const select = document.getElementById(`reader-channel-${controlId}`);
             if (!select) return;
 
             const selectedChannel = select.value;
-            if (!selectedChannel) return;
+            if (!selectedChannel) {
+                delete window.readerSelectedChannels[controlId];
+                return;
+            }
+
+            // Store selected channel
+            window.readerSelectedChannels[controlId] = selectedChannel;
 
             // Update the command template to read from this channel
             const commandInput = document.getElementById(`cmd-${controlId}`);
@@ -3571,8 +3580,35 @@
                 commandInput.value = `${selectedChannel}: {value}`;
             }
 
+            // Display current value immediately
+            displayReaderValue(controlId, selectedChannel);
+
             console.log('[READER CHANNEL]', controlId, 'selected:', selectedChannel);
         }
+
+        // Display latest value from selected channel
+        function displayReaderValue(controlId, channelName) {
+            const valueDisplay = document.getElementById(`value-${controlId}`);
+            if (!valueDisplay || !window.serialValuePatterns[channelName]) return;
+
+            const pattern = window.serialValuePatterns[channelName];
+            if (pattern.lastValue !== undefined) {
+                valueDisplay.textContent = pattern.lastValue.toFixed(2);
+            }
+        }
+
+        // Hook into serial data updates to refresh reader displays
+        const originalAddToSerialTerminal = addToSerialTerminal;
+        addToSerialTerminal = function(data) {
+            originalAddToSerialTerminal(data);
+            
+            // Update all active reader displays
+            if (window.readerSelectedChannels) {
+                Object.entries(window.readerSelectedChannels).forEach(([controlId, channelName]) => {
+                    displayReaderValue(controlId, channelName);
+                });
+            }
+        };
 
         function confirmReaderCommand(controlId) {
             const commandInput = document.getElementById(`cmd-${controlId}`);
