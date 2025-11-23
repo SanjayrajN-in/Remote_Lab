@@ -55,6 +55,7 @@ audio_data_queue = Queue(maxsize=1)  # Keep only 1 buffer max to minimize latenc
 # Device configurations
 ARDUINO_IDS = {'2341', '2a03', '1a86'}
 ESP32_IDS = {'10c4', '303a'}
+FT232_IDS = {'0403'}  # FTDI VID for FT232 USB to UART adapters
 USBASP_IDS={'16c0:05dc'}
 ESP_BAUD = "460800"
 
@@ -711,20 +712,24 @@ def detect_avr_chip_usbasp():
     return 'atmega328p'  # Default fallback
 
 def find_devices():
-    devices = []
-    for port in serial.tools.list_ports.comports():
-        if port.vid is not None:
-            vid = f"{port.vid:04x}"
-            if vid in ARDUINO_IDS:
-                chip_type = detect_avr_chip(port.device)
-                devices.append(('arduino', port.device, f'AVR ({chip_type})', chip_type))
-            elif vid in ESP32_IDS:
-                devices.append(('esp32', port.device, 'ESP32', 'esp32'))
-    if find_usbasp():
-        usbasp_chip_type = detect_avr_chip_usbasp()
-        devices.append(('usbasp','N/A', f'AVR ({usbasp_chip_type})', usbasp_chip_type))
+     devices = []
+     for port in serial.tools.list_ports.comports():
+         if port.vid is not None:
+             vid = f"{port.vid:04x}"
+             if vid in ARDUINO_IDS:
+                 chip_type = detect_avr_chip(port.device)
+                 devices.append(('arduino', port.device, f'AVR ({chip_type})', chip_type))
+             elif vid in ESP32_IDS:
+                 devices.append(('esp32', port.device, 'ESP32', 'esp32'))
+             elif vid in FT232_IDS:
+                 # FT232 USB to UART adapter - detect AVR chip connected via serial
+                 chip_type = detect_avr_chip(port.device)
+                 devices.append(('ft232', port.device, f'AVR ({chip_type})', chip_type))
+     if find_usbasp():
+         usbasp_chip_type = detect_avr_chip_usbasp()
+         devices.append(('usbasp','N/A', f'AVR ({usbasp_chip_type})', usbasp_chip_type))
 
-    return devices
+     return devices
 
 def find_firmware():
     return [f for f in os.listdir('.') if f.endswith(('.hex', '.bin'))]
@@ -751,6 +756,16 @@ def upload_firmware(device_type, port, file_path, chip_type='atmega328p'):
                 '-p', chip_type,
                 '-c', 'arduino',
                 '-P', port,
+                '-U', f'flash:w:{file_path}:i'
+            ]
+        elif device_type == 'ft232':
+            # FT232 USB to UART adapter using Arduino bootloader (STK500v1)
+            cmd = [
+                'avrdude',
+                '-p', chip_type,
+                '-c', 'arduino',
+                '-P', port,
+                '-b', '115200',  # FT232 default baud rate
                 '-U', f'flash:w:{file_path}:i'
             ]
         elif device_type == 'usbasp':

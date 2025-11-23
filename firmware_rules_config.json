@@ -39,6 +39,15 @@
         }
       }
     },
+    "t85": {
+      "chip_name": "ATtiny85",
+      "pin_restrictions": {
+        "pin_0": {
+          "description": "Reset pin - Do not use as I/O",
+          "allowed_modes": []
+        }
+      }
+    },
     "esp32": {
       "chip_name": "ESP32",
       "pin_restrictions": {}
